@@ -4,7 +4,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import vm from "node:vm";
 import { compileSource } from "../skills/inline-brief/scripts/compile.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -267,4 +268,314 @@ test("repository contains no private paths, forbidden names or old DSL prefixes"
     const text = readFileSync(f, "utf8");
     for (const b of banned) assert.ok(!text.includes(b), `${f} contains "${b}"`);
   }
+});
+
+test("DSL strictness: unknown or misplaced <ib-*> child tags are rejected", () => {
+  const badBars = compileSource(page(`<ib-bars title="B"><ib-bar label="a" value="1"></ib-bar><ib-barr label="b" value="2"></ib-barr><ib-point label="p" value="3"/></ib-bars>`));
+  assert.ok(badBars.errors.some((e) => e.includes("<ib-bars>: unknown or misplaced <ib-barr>")));
+  assert.ok(badBars.errors.some((e) => e.includes("<ib-bars>: unknown or misplaced <ib-point>")));
+
+  const badKpis = compileSource(page(`<ib-kpis><ib-kpi label="a" value="1"></ib-kpi><ib-bar label="b" value="2"></ib-bar></ib-kpis>`));
+  assert.ok(badKpis.errors.some((e) => e.includes("<ib-kpis>: unknown or misplaced <ib-bar>")));
+
+  const badFlow = compileSource(page(`<ib-flow title="F" caption="c"><ib-node id="a" col="1" row="1">A</ib-node><ib-nod id="b" col="2" row="1">B</ib-nod></ib-flow>`));
+  assert.ok(badFlow.errors.some((e) => e.includes("<ib-flow>: unknown or misplaced <ib-nod>")));
+
+  const badLanes = compileSource(page(`<ib-lanes title="L"><ib-lane name="A"><ib-step>S</ib-step><ib-typo/></ib-lane></ib-lanes>`));
+  assert.ok(badLanes.errors.some((e) => e.includes("<ib-lane>: unknown or misplaced <ib-typo>")));
+
+  const multiStray = compileSource(page(`<ib-foo></ib-foo><ib-bar-bad></ib-bar-bad>`));
+  assert.ok(multiStray.errors.some((e) => e.includes("unknown or misplaced <ib-foo>")));
+  assert.ok(multiStray.errors.some((e) => e.includes("unknown or misplaced <ib-bar-bad>")));
+});
+
+test("DSL strictness: content outside <ib-page> fails, comments outside pass", () => {
+  const outside = compileSource(`<p>before</p><ib-page title="T"><p>ok</p></ib-page><p>after</p>`);
+  assert.equal(outside.errors.filter((e) => e.includes("outside <ib-page>")).length, 2);
+
+  const missingPage = compileSource(`<p>no page wrapper</p>`);
+  assert.ok(missingPage.errors.some((e) => e.includes("content outside <ib-page> is forbidden")));
+
+  const commentOnly = compileSource(`<!-- ok --><ib-page title="A > B"><ib-kpis><ib-kpi label="R&amp;D" value="1"/></ib-kpis></ib-page>`);
+  assert.deepEqual(commentOnly.errors, []);
+  assert.match(commentOnly.html, /<title>A &gt; B<\/title>/);
+  assert.match(commentOnly.html, />R&amp;D</);
+});
+
+test("DSL strictness: bars reject empty/hex values and max below peak", () => {
+  const bad = compileSource(
+    page(`<ib-bars title="B" max="10"><ib-bar label="e" value=""></ib-bar><ib-bar label="h" value="0x10"></ib-bar><ib-bar label="big" value="50"></ib-bar></ib-bars>`)
+  );
+  assert.ok(bad.errors.some((e) => e.includes('<ib-bar>: value="" must be a non-negative number')));
+  assert.ok(bad.errors.some((e) => e.includes('<ib-bar>: value="0x10" must be a non-negative number')));
+  assert.ok(bad.errors.some((e) => e.includes('<ib-bars>: max="10" is below the largest value 50')));
+
+  const good = compileSource(page(`<ib-bars title="B" max="50"><ib-bar label="a" value="50"></ib-bar></ib-bars>`));
+  assert.deepEqual(good.errors, []);
+});
+
+test("DSL strictness: unknown tone and kind are rejected, valid values pass", () => {
+  const bad = compileSource(
+    page(`<ib-kpis><ib-kpi label="a" value="1" tone="purple"/></ib-kpis>
+<ib-bars title="B"><ib-bar label="b" value="1" tone="success"/></ib-bars>
+<ib-flow title="F" caption="c"><ib-node id="n" col="1" row="1" tone="error">N</ib-node></ib-flow>
+<ib-lanes title="L"><ib-lane name="A" tone="bogus"><ib-step kind="bogus">S</ib-step></ib-lane></ib-lanes>`)
+  );
+  assert.ok(bad.errors.some((e) => e.includes('<ib-kpi>: unknown tone="purple"')));
+  assert.ok(bad.errors.some((e) => e.includes('<ib-bar>: unknown tone="success"')));
+  assert.ok(bad.errors.some((e) => e.includes('<ib-node>: unknown tone="error"')));
+  assert.ok(bad.errors.some((e) => e.includes('<ib-lane>: unknown tone="bogus"')));
+  assert.ok(bad.errors.some((e) => e.includes('<ib-step>: unknown kind="bogus"')));
+
+  const good = compileSource(
+    page(`<ib-kpis><ib-kpi label="a" value="1" tone="ok"/><ib-kpi label="b" value="2" tone="warn"/></ib-kpis>
+<ib-lanes title="L"><ib-lane name="A" tone="info"><ib-step kind="action">S1</ib-step><ib-step kind="gate">S2</ib-step><ib-step kind="break">S3</ib-step></ib-lane></ib-lanes>`)
+  );
+  assert.deepEqual(good.errors, []);
+});
+
+test("DSL strictness: flow cell collision, excessive columns, and empty lane fail", () => {
+  const cols13 = Array.from({ length: 13 }, (_, i) => `<ib-node id="n${i}" col="${i + 1}" row="1">N</ib-node>`).join("");
+  const badFlow = compileSource(
+    page(`<ib-flow title="F" caption="c"><ib-node id="a" col="1" row="1">A</ib-node><ib-node id="b" col="1" row="1">B</ib-node></ib-flow>
+<ib-flow title="F2" caption="c">${cols13}</ib-flow>`)
+  );
+  assert.ok(badFlow.errors.some((e) => e.includes('cell (1, 1) collides with <ib-node id="a">')));
+  assert.ok(badFlow.errors.some((e) => e.includes("too many columns (13)")));
+  assert.doesNotMatch(badFlow.html, /width="-/);
+
+  const emptyLane = compileSource(page(`<ib-lanes title="L"><ib-lane name="Empty"></ib-lane></ib-lanes>`));
+  assert.ok(emptyLane.errors.some((e) => e.includes('<ib-lane name="Empty">: must contain at least one <ib-step>')));
+});
+
+test("warning: dangling focus keys in stepper or ib-ref raise warnings, matched keys do not", () => {
+  const warnRes = compileSource(
+    page(`<ib-kpis><ib-kpi label="a" value="1" focus="k1"/></ib-kpis>
+<ib-stepper><ib-stage title="s" focus="nope">See <span class="ib-ref" data-focus="ghost">g</span></ib-stage></ib-stepper>`)
+  );
+  assert.deepEqual(warnRes.errors, []);
+  assert.ok(warnRes.warnings.some((w) => w.includes('<ib-stage>: dangling focus key "nope"')));
+  assert.ok(warnRes.warnings.some((w) => w.includes('.ib-ref: dangling focus key "ghost"')));
+
+  const okRes = compileSource(
+    page(`<ib-kpis><ib-kpi label="a" value="1" focus="k1"/></ib-kpis>
+<ib-stepper><ib-stage title="s" focus="k1">See <span class="ib-ref" data-focus="k1">k1</span></ib-stage></ib-stepper>`)
+  );
+  assert.deepEqual(okRes.errors, []);
+  assert.deepEqual(okRes.warnings, []);
+});
+
+test("gates 1+2+4+5: CSS-only scoping eliminates prose, selector, comment and '>' false positives", () => {
+  const clean = compileSource(
+    page(`<p>Never use 100vh or 0dvh in iframes.</p>
+<ib-kpis><ib-kpi label="Unit" value="100vh"/></ib-kpis>
+<ib-details summary="s"><pre><code>min-height: 100vh;</code></pre></ib-details>
+<svg aria-label="a > b" viewBox="0 0 10 10"><rect fill="none" stroke="currentColor" width="10" height="10"/><path fill="transparent" stroke="inherit" d="M0 0"/></svg>
+<style>
+  /* html comment #fff */
+  .card-body .fill, tbody td { height: 100%; }
+  body { min-height: 100%; }
+  html { color: var(--foreground); }
+  .inner { height: 100%; }
+  #facade, #cafe { fill: url(#fade); color: var(--foreground); border-color: transparent; background: currentColor; }
+</style>`)
+  );
+  assert.deepEqual(clean.errors, []);
+});
+
+test("gates 1+2+4: catch :root/body height:100%, inline style, SVG paint, oklch and named colors", () => {
+  const badRoot = compileSource(page(`<style>:root { height: 100%; } .foo, body { height: 100.0%; }</style>`));
+  assert.equal(badRoot.errors.filter((e) => e.includes("height: 100% on html/body forbidden")).length, 2);
+
+  const badInlineAndSvg = compileSource(
+    page(`<div style="height: .5vh; color: #ff0000; background: rgb(1,2,3)">x</div>
+<svg viewBox="0 0 10 10"><rect fill="#00ff00" stroke="red" width="10" height="10"/></svg>
+<style>.a { color: oklch(0.7 0.2 120); background: white; }</style>`)
+  );
+  assert.ok(badInlineAndSvg.errors.some((e) => e.includes('viewport height unit ".5vh"')));
+  assert.ok(badInlineAndSvg.errors.some((e) => e.includes('hardcoded color "#ff0000" in style attribute')));
+  assert.ok(badInlineAndSvg.errors.some((e) => e.includes('hardcoded color "rgb(" in style attribute')));
+  assert.ok(badInlineAndSvg.errors.some((e) => e.includes('hardcoded color "#00ff00" in SVG fill attribute')));
+  assert.ok(badInlineAndSvg.errors.some((e) => e.includes('hardcoded color "red" in SVG stroke attribute')));
+  assert.ok(badInlineAndSvg.errors.some((e) => e.includes('hardcoded color "oklch(" in <style>')));
+  assert.ok(badInlineAndSvg.errors.some((e) => e.includes('hardcoded color "white" in <style>')));
+});
+
+test("CLI robustness: importing compile.mjs via stdin module does not throw on argv[1]", () => {
+  const cliUrl = pathToFileURL(CLI).href;
+  const r = spawnSync(
+    process.execPath,
+    ["--input-type=module", "-"],
+    {
+      input: `import { compileSource } from ${JSON.stringify(cliUrl)}; const res = compileSource('<ib-page title="T"><p>ok</p></ib-page>'); if (res.errors.length) process.exit(1);`,
+      encoding: "utf8",
+    }
+  );
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test("kit CSS & runtime: focus highlight styles exist, dynamic .ib-ref works, and multiple steppers isolate timers/state", () => {
+  const baseCss = readFileSync(join(ROOT, "skills/inline-brief/kit/base.css"), "utf8");
+  for (const sel of [".ib-kpi[data-focus]", ".ib-kpi.ib-lit", ".ib-bar-row[data-focus]", ".ib-bar-row.ib-lit", ".ib-pt[data-focus]", ".ib-pt.ib-lit"]) {
+    assert.ok(baseCss.includes(sel), `base.css missing ${sel}`);
+  }
+
+  // Minimal DOM stub to execute kit/runtime.js
+  class FakeClassList {
+    constructor(el) { this.el = el; this.set = new Set(); }
+    add(...c) { c.forEach((x) => this.set.add(x)); }
+    remove(...c) { c.forEach((x) => this.set.delete(x)); }
+    toggle(c, force) {
+      if (force === undefined) return this.set.has(c) ? (this.set.delete(c), false) : (this.set.add(c), true);
+      if (force) this.set.add(c); else this.set.delete(c);
+      return force;
+    }
+    contains(c) { return this.set.has(c); }
+  }
+  class FakeEl {
+    constructor(tag, attrs = {}, parent = null) {
+      this.tag = tag;
+      this.attrs = { ...attrs };
+      this.dataset = {};
+      for (const [k, v] of Object.entries(attrs)) {
+        if (k.startsWith("data-")) {
+          const camel = k.slice(5).replace(/-([a-z])/g, (_, ch) => ch.toUpperCase());
+          this.dataset[camel] = v;
+        }
+      }
+      this.parent = parent;
+      this.children = [];
+      this.classList = new FakeClassList(this);
+      if (attrs.class) this.classList.add(...attrs.class.split(/\s+/).filter(Boolean));
+      this.listeners = {};
+      this.textContent = "";
+      this._innerHTML = "";
+    }
+    get innerHTML() { return this._innerHTML; }
+    set innerHTML(v) {
+      this._innerHTML = v;
+      this.children = [];
+      for (const m of String(v).matchAll(/<span class="ib-ref" data-focus="([^"]+)">([^<]*)<\/span>/g)) {
+        const child = new FakeEl("span", { class: "ib-ref", "data-focus": m[1] }, this);
+        child.textContent = m[2];
+        this.children.push(child);
+      }
+    }
+    getAttribute(name) { return this.attrs[name] ?? null; }
+    setAttribute(name, val) { this.attrs[name] = String(val); }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    dispatch(type, extra = {}) {
+      const ev = { target: this, relatedTarget: null, ...extra };
+      for (const fn of this.listeners[type] || []) fn(ev);
+      for (const fn of docListeners[type] || []) fn(ev);
+    }
+    matches(sel) {
+      if (sel === "[data-focus]") return this.attrs["data-focus"] !== undefined;
+      if (sel === ".ib-stepper-btns") return this.classList.contains("ib-stepper-btns");
+      if (sel.startsWith(".")) return this.classList.contains(sel.slice(1));
+      const attrM = /^\[data-act="([^"]+)"\]$/.exec(sel);
+      if (attrM) return this.attrs["data-act"] === attrM[1];
+      return false;
+    }
+    closest(sel) {
+      let cur = this;
+      while (cur) {
+        if (cur.matches(sel)) return cur;
+        cur = cur.parent;
+      }
+      return null;
+    }
+    querySelectorAll(sel) {
+      const out = [];
+      const walk = (n) => {
+        for (const c of n.children) {
+          if (c.matches(sel)) out.push(c);
+          walk(c);
+        }
+      };
+      walk(this);
+      return out;
+    }
+    querySelector(sel) { return this.querySelectorAll(sel)[0] ?? null; }
+  }
+
+  const root = new FakeEl("div");
+  const kpiA = new FakeEl("div", { class: "ib-kpi", "data-focus": "a" }, root);
+  const kpiB = new FakeEl("div", { class: "ib-kpi", "data-focus": "b" }, root);
+  root.children.push(kpiA, kpiB);
+
+  function makeStepper(stage1Focus, stage1Html, stage2Focus) {
+    const st = new FakeEl("div", { class: "ib-stepper" }, root);
+    const btns = new FakeEl("div", { class: "ib-stepper-btns" }, st);
+    const prev = new FakeEl("button", { class: "ib-btn", "data-act": "prev" }, btns);
+    const dot0 = new FakeEl("button", { class: "ib-dot is-active" }, btns);
+    const dot1 = new FakeEl("button", { class: "ib-dot" }, btns);
+    const next = new FakeEl("button", { class: "ib-btn", "data-act": "next" }, btns);
+    const play = new FakeEl("button", { class: "ib-btn", "data-act": "play", "aria-pressed": "false" }, btns);
+    const reset = new FakeEl("button", { class: "ib-btn", "data-act": "reset" }, btns);
+    btns.children.push(prev, dot0, dot1, next, play, reset);
+    const title = new FakeEl("div", { class: "ib-stage-title" }, st);
+    const body = new FakeEl("div", { class: "ib-stage-body" }, st);
+    const d0 = new FakeEl("div", { class: "ib-stage-data", "data-title": "S1", "data-stage-focus": stage1Focus }, st);
+    d0._innerHTML = stage1Html;
+    const d1 = new FakeEl("div", { class: "ib-stage-data", "data-title": "S2", "data-stage-focus": stage2Focus }, st);
+    d1._innerHTML = "Stage 2";
+    st.children.push(btns, title, body, d0, d1);
+    root.children.push(st);
+    return { st, body, dot1, next, play, reset };
+  }
+
+  const s1 = makeStepper("a", 'Go <span class="ib-ref" data-focus="b">B</span>', "b");
+  const s2 = makeStepper("b", "Step two", "a");
+  const docListeners = {};
+  const activeTimers = new Map();
+  let nextTimerId = 1;
+
+  const runtimeSrc = readFileSync(join(ROOT, "skills/inline-brief/kit/runtime.js"), "utf8");
+  vm.runInNewContext(runtimeSrc, {
+    document: {
+      querySelectorAll: (sel) => root.querySelectorAll(sel),
+      addEventListener: (type, fn) => { (docListeners[type] ||= []).push(fn); },
+    },
+    setInterval: (fn) => { const id = nextTimerId++; activeTimers.set(id, fn); return id; },
+    clearInterval: (id) => { activeTimers.delete(id); },
+  });
+
+  // 1. Initial render: nothing dimmed
+  assert.equal(kpiA.classList.contains("ib-dim"), false);
+  assert.equal(kpiB.classList.contains("ib-dim"), false);
+
+  // 2. Dynamic .ib-ref inside stepper body works on hover and click via delegation
+  const dynRef = s1.body.children[0];
+  assert.ok(dynRef && dynRef.getAttribute("data-focus") === "b");
+  dynRef.dispatch("mouseover");
+  assert.equal(kpiB.classList.contains("ib-lit"), true);
+  assert.equal(kpiA.classList.contains("ib-dim"), true);
+  dynRef.dispatch("mouseout", { relatedTarget: root });
+  assert.equal(kpiA.classList.contains("ib-dim"), false);
+  dynRef.dispatch("click");
+  assert.equal(kpiB.classList.contains("ib-lit"), true);
+  assert.equal(kpiA.classList.contains("ib-dim"), true);
+
+  // 3. Two steppers coordinate play timers and isolate reset state
+  s1.play.dispatch("click");
+  assert.equal(activeTimers.size, 1);
+  assert.equal(s1.play.getAttribute("aria-pressed"), "true");
+
+  s2.play.dispatch("click");
+  assert.equal(activeTimers.size, 1, "starting stepper 2 must stop stepper 1's timer");
+  assert.equal(s1.play.getAttribute("aria-pressed"), "false");
+  assert.equal(s2.play.getAttribute("aria-pressed"), "true");
+  assert.equal(kpiB.classList.contains("ib-lit"), true);
+
+  // Resetting stepper 1 must not wipe out stepper 2's active highlight
+  s1.reset.dispatch("click");
+  assert.equal(kpiB.classList.contains("ib-lit"), true);
+  assert.equal(kpiA.classList.contains("ib-dim"), true);
+
+  // Resetting stepper 2 clears active highlight and stops its timer
+  s2.reset.dispatch("click");
+  assert.equal(activeTimers.size, 0);
+  assert.equal(kpiA.classList.contains("ib-dim"), false);
+  assert.equal(kpiB.classList.contains("ib-lit"), false);
 });
