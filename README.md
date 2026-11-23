@@ -27,7 +27,7 @@ Raw HTML and SVG written by an LLM for an inline preview tends to fail in the sa
 - **Semantic DSL.** The agent writes nodes, edges, points and bars with real data. Styles, SVG routing and interaction code are generated.
 - **Static contract gates.** Six classes of `html_render` violations fail the build with a line number (see [below](#static-gates)).
 - **Native theming.** Output uses only T3 CSS variables (`--card`, `--border`, `--chart-1`, `--info`, ...), so it follows Dark, Light and custom themes.
-- **Zero dependencies.** One Node >= 20 ES module, no install step, no network access, no external assets in the output.
+- **Zero dependencies.** One Node >= 20 ES module, no install step, no network access, zero external URLs or embeds in the output (`data:` and `#id` allowed).
 
 ## Examples
 
@@ -98,14 +98,14 @@ Full attribute reference: [`components.md`](skills/inline-brief/references/compo
 
 `compile.mjs` exits non-zero and prints `ERROR line N: ...` for:
 
-1. `vh` / `dvh` / `svh` / `lvh` units
-2. `height: 100%` on `html` or `body`
-3. external `<link>`, `<script src>`, `@import`, `url()` over `http(s)`
-4. hardcoded `#hex` / `rgb()` / `hsl()` colors in a custom `<style>`
+1. `vh` / `dvh` / `svh` / `lvh` units in CSS (`<style>` and `style=`)
+2. `height: 100%` on `html`, `body`, or `:root` selectors
+3. external URLs (`http(s)://` or `//`) in URL attributes (`src`, `href`, `srcset`, `poster`, `data`, `action`, `formaction`, `xlink:href`, quoted or unquoted), CSS `@import` / `url()` (`<style>` and `style=`), `<iframe>`/`<object>`/`<embed>`, or `<script>` (`fetch(`, `XMLHttpRequest`, `import(`, external URL strings); `data:` URIs and `#id` anchors are allowed (enforced as self-contained skill policy; the T3 host itself permits remote URLs)
+4. hardcoded colors (`#hex`, `rgb()`, `hsl()`, `oklch()`, named colors) in CSS declarations (`<style>`, `style=`) or SVG `fill`/`stroke`/`stop-color`
 5. a raw `<svg>` without `viewBox`
-6. invalid figure data: negative or non-numeric values, dangling edges, duplicate node ids, a missing `caption` on a flow or trend, fewer than two trend points
+6. invalid DSL structure or figure data: unknown/misplaced `<ib-*>` tags, content outside `<ib-page>`, empty/non-numeric values, `max` below peak, unknown `tone`/`kind`/`curve`, flow cell collisions or column overflow, empty `<ib-lane>`, dangling edges, duplicate node ids, missing `caption` on a flow or trend, fewer than two trend points
 
-It also warns about edge labels wider than their gap and overlapping trend marks.
+It also warns about edge labels wider than their gap, overlapping trend marks, and dangling `focus` keys.
 
 ## Use and verify locally
 

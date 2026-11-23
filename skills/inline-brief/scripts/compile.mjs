@@ -6,12 +6,29 @@
  * Usage:
  *   node scripts/compile.mjs <input.src.html> [output.html] [--check]
  */
-import { readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KIT_DIR = resolve(__dirname, "../kit");
+
+function readSkillVersion() {
+  try {
+    const pkgPath = resolve(__dirname, "../../../package.json");
+    if (existsSync(pkgPath)) {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+      if (pkg && typeof pkg.version === "string" && pkg.version.trim()) {
+        return pkg.version.trim();
+      }
+    }
+  } catch {
+    // Standalone copied skill directory without repo root package.json
+  }
+  return "0.1.1";
+}
+
+const VERSION = readSkillVersion();
 
 const TONE_STROKE = {
   neutral: "var(--border)",
@@ -968,22 +985,126 @@ function lintCssDeclarations(decls, locationLabel, selector, tagName, src, ctx) 
   }
 }
 
-function lintSource(src, ctx) {
-  // 1. Forbidden external resource links (Gate 3)
-  const extPatterns = [
-    { re: /<link\b[^>]*\bhref\s*=\s*["']https?:\/\//gi, msg: "external <link> URL forbidden (T3 offline/fake-IP safety)" },
-    { re: /<script\b[^>]*\bsrc\s*=\s*["']https?:\/\//gi, msg: "external <script src> URL forbidden (must be self-contained)" },
-    { re: /@import\s+(?:url\()?["']?https?:\/\//gi, msg: "external CSS @import URL forbidden" },
-    { re: /url\(\s*["']?https?:\/\//gi, msg: "external CSS url() forbidden" },
+const URL_ATTRS = new Set(["src", "href", "srcset", "poster", "data", "action", "formaction", "xlink:href"]);
+const FORBIDDEN_EMBED_TAGS = new Set(["iframe", "object", "embed"]);
+
+function isExternalUrl(raw) {
+  const val = String(raw || "").trim();
+  if (!val || val.startsWith("#") || /^data:/i.test(val)) return false;
+  return /^(?:https?:)?\/\//i.test(val);
+}
+
+function checkTagAttrsForExternalUrls(tagName, rawAttrs, attrsOffset, src, ctx) {
+  if (FORBIDDEN_EMBED_TAGS.has(tagName)) {
+    ctx.errors.push(`line ${lineAt(src, attrsOffset)}: embedded <${tagName}> forbidden (must be self-contained)`);
+  }
+  const attrRe = /([a-zA-Z_:][\w:.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  let am;
+  while ((am = attrRe.exec(rawAttrs)) !== null) {
+    const attrName = am[1].toLowerCase();
+    if (!URL_ATTRS.has(attrName)) continue;
+    const rawVal = am[2] ?? am[3] ?? am[4] ?? "";
+    const candidates =
+      attrName === "srcset"
+        ? rawVal.split(",").map((part) => part.trim().split(/\s+/)[0] || "")
+        : [rawVal];
+    for (const urlCandidate of candidates) {
+      if (!isExternalUrl(urlCandidate)) continue;
+      const errOffset = attrsOffset + am.index;
+      if (tagName === "link" && attrName === "href") {
+        ctx.errors.push(`line ${lineAt(src, errOffset)}: external <link> URL forbidden (T3 offline/fake-IP safety)`);
+      } else if (tagName === "script" && attrName === "src") {
+        ctx.errors.push(`line ${lineAt(src, errOffset)}: external <script src> URL forbidden (must be self-contained)`);
+      } else {
+        ctx.errors.push(`line ${lineAt(src, errOffset)}: external <${tagName} ${attrName}> URL forbidden (must be self-contained)`);
+      }
+      break;
+    }
+  }
+}
+
+function checkCssExternalUrls(cssText, cssOffset, src, ctx) {
+  const clean = stripCssComments(cssText);
+  const importRe = /@import\s+(?:url\(\s*)?(?:"([^"]*)"|'([^']*)'|([^\s;)]+))/gi;
+  let m;
+  while ((m = importRe.exec(clean)) !== null) {
+    const target = m[1] ?? m[2] ?? m[3] ?? "";
+    if (isExternalUrl(target)) {
+      ctx.errors.push(`line ${lineAt(src, cssOffset + m.index)}: external CSS @import URL forbidden`);
+    }
+  }
+  const urlRe = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]+))\s*\)/gi;
+  while ((m = urlRe.exec(clean)) !== null) {
+    const target = m[1] ?? m[2] ?? m[3] ?? "";
+    if (isExternalUrl(target)) {
+      ctx.errors.push(`line ${lineAt(src, cssOffset + m.index)}: external CSS url() forbidden`);
+    }
+  }
+}
+
+function lintScriptBody(js, jsOffset, src, ctx) {
+  // Separate code from string/template literals while skipping JS comments
+  let codeOnly = "";
+  const strings = [];
+  for (let i = 0; i < js.length; i++) {
+    const ch = js[i];
+    if (ch === "/" && js[i + 1] === "/") {
+      const nl = js.indexOf("\n", i + 2);
+      const end = nl === -1 ? js.length : nl;
+      codeOnly += maskKeepNewlines(js.slice(i, end));
+      i = end - 1;
+      continue;
+    }
+    if (ch === "/" && js[i + 1] === "*") {
+      const close = js.indexOf("*/", i + 2);
+      const end = close === -1 ? js.length : close + 2;
+      codeOnly += maskKeepNewlines(js.slice(i, end));
+      i = end - 1;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      const quote = ch;
+      const start = i + 1;
+      let j = start;
+      while (j < js.length) {
+        if (js[j] === "\\" && j + 1 < js.length) {
+          j += 2;
+          continue;
+        }
+        if (js[j] === quote) break;
+        j++;
+      }
+      strings.push({ text: js.slice(start, j), offset: jsOffset + start });
+      codeOnly += maskKeepNewlines(js.slice(i, Math.min(js.length, j + 1)));
+      i = j;
+      continue;
+    }
+    codeOnly += ch;
+  }
+
+  const netPatterns = [
+    { re: /\bfetch\s*\(/g, msg: 'external network call "fetch(" forbidden in <script> (must be self-contained)' },
+    { re: /\bXMLHttpRequest\b/g, msg: 'external network API "XMLHttpRequest" forbidden in <script> (must be self-contained)' },
+    { re: /\bimport\s*\(/g, msg: 'dynamic "import(" forbidden in <script> (must be self-contained)' },
   ];
-  for (const p of extPatterns) {
+  for (const p of netPatterns) {
     let m;
-    while ((m = p.re.exec(src)) !== null) {
-      ctx.errors.push(`line ${lineAt(src, m.index)}: ${p.msg}`);
+    while ((m = p.re.exec(codeOnly)) !== null) {
+      ctx.errors.push(`line ${lineAt(src, jsOffset + m.index)}: ${p.msg}`);
     }
   }
 
-  // Extract CSS contexts (<style> blocks and inline style= attributes) outside HTML comments & <script>
+  const strUrlRe = /(?:https?:\/\/|(?:^|[^:\w/])\/\/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+  for (const s of strings) {
+    let m;
+    while ((m = strUrlRe.exec(s.text)) !== null) {
+      ctx.errors.push(`line ${lineAt(src, s.offset + m.index)}: external URL in <script> string forbidden (must be self-contained)`);
+    }
+  }
+}
+
+function lintSource(src, ctx) {
+  // Extract CSS/script blocks outside HTML comments
   const noComments = stripHtmlComments(src);
   const blockRe = new RegExp(`<(style|script)\\b${ATTR_SRC}>([\\s\\S]*?)<\\/\\1>`, "gi");
   let htmlOnly = "";
@@ -993,24 +1114,31 @@ function lintSource(src, ctx) {
     htmlOnly += noComments.slice(last, bm.index);
     htmlOnly += maskKeepNewlines(bm[0]);
     last = bm.index + bm[0].length;
-    if (bm[1].toLowerCase() === "style") {
-      const openEnd = 1 + bm[1].length + (bm[2] || "").length + 1;
-      const cssOffset = bm.index + openEnd;
+    const blockTag = bm[1].toLowerCase();
+    const rawBlockAttrs = bm[2] || "";
+    const blockAttrsOffset = bm.index + 1 + bm[1].length;
+    const bodyOffset = blockAttrsOffset + rawBlockAttrs.length + 1;
+    if (blockTag === "style") {
+      checkCssExternalUrls(bm[3], bodyOffset, src, ctx);
       walkCssRules(bm[3], (rule) => {
-        const decls = splitCssDeclarations(rule.body, cssOffset + rule.bodyOffset);
+        const decls = splitCssDeclarations(rule.body, bodyOffset + rule.bodyOffset);
         lintCssDeclarations(decls, "<style>", rule.selector, null, src, ctx);
       });
+    } else if (blockTag === "script") {
+      checkTagAttrsForExternalUrls("script", rawBlockAttrs, blockAttrsOffset, src, ctx);
+      lintScriptBody(bm[3], bodyOffset, src, ctx);
     }
   }
   htmlOnly += noComments.slice(last);
 
-  // Inline style= attributes (Gates 1, 2, 4)
+  // HTML/SVG tags: Gate 3 URL attributes/embeds + inline style= attributes (Gates 1, 2, 3, 4)
   const tagRe = new RegExp(`<([a-zA-Z][\\w:-]*)\\b(${ATTR_SRC})\\/?>`, "g");
   let tm;
   while ((tm = tagRe.exec(htmlOnly)) !== null) {
     const tagName = tm[1].toLowerCase();
     const rawAttrs = tm[2] || "";
     const attrsOffset = tm.index + 1 + tm[1].length;
+    checkTagAttrsForExternalUrls(tagName, rawAttrs, attrsOffset, src, ctx);
     const styleAttrRe = /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
     let sm;
     while ((sm = styleAttrRe.exec(rawAttrs)) !== null) {
@@ -1020,6 +1148,7 @@ function lintSource(src, ctx) {
       const eqTail = sm[0].slice(sm[0].indexOf("=") + 1);
       const leadSpace = eqTail.length - eqTail.trimStart().length;
       const exactOffset = valOffset + leadSpace + quoteAdjust;
+      checkCssExternalUrls(val, exactOffset, src, ctx);
       const decls = splitCssDeclarations(val, exactOffset);
       lintCssDeclarations(decls, "style attribute", null, tagName, src, ctx);
     }
@@ -1228,6 +1357,7 @@ export function compileSource(src) {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="generator" content="inline-brief ${escHtml(VERSION)}" />
 <title>${escHtml(title)}</title>
 <style>
 ${baseCss.trim()}
@@ -1251,6 +1381,10 @@ ${runtimeJs.trim()}
 
 function main() {
   const args = process.argv.slice(2);
+  if (args.includes("--version")) {
+    console.log(VERSION);
+    process.exit(0);
+  }
   const checkOnly = args.includes("--check");
   const positional = args.filter((a) => !a.startsWith("--"));
   if (args.includes("--help") || !positional.length) {

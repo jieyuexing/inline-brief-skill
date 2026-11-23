@@ -28,7 +28,7 @@
 - **语义 DSL**：Agent 只写节点、连线、数据点、柱条与真实数据，样式、SVG 布线与交互脚本由编译器生成。
 - **静态合同门禁**：六类 `html_render` 违规会带行号直接编译失败（见 [静态门禁](#静态门禁)）。
 - **原生主题**：产物只使用 T3 的 CSS 变量（`--card`、`--border`、`--chart-1`、`--info` 等），亮色、暗色与自定义主题自动同步。
-- **零依赖**：单个 Node >= 20 ES 模块，无需安装，无需联网，产物不含任何外部资源。
+- **零依赖**：单个 Node >= 20 ES 模块，无需安装，无需联网，产物不含任何外链或外部嵌入（仅放行 `data:` 与页内 `#id`）。
 
 ## 示例
 
@@ -67,7 +67,7 @@ Claude Code 也可作为插件安装：`/plugin marketplace add jieyuexing/inlin
 | --- | --- |
 | `<ib-kpis>` / `<ib-kpi>` | 指标条，2 到 4 张卡片 |
 | `<ib-trend>` / `<ib-point>` | 折线面积趋势图，含坐标轴、数值标注与 `mark` 里程碑虚线 |
-| `<ib-bars>` / `<ib-bar>` | 零基线对比柱条，必带单位 |
+| `<ib-bars>` / `<ib-bar>` | 零基线对比柱条，支持单位 |
 | `<ib-flow>` / `<ib-node>` / `<ib-edge>` | 网格定位、自动布线的流程图，支持带标签连线与回退连线 |
 | `<ib-lanes>` / `<ib-lane>` / `<ib-step>` | 顺序泳道，步骤类型 `action`、`gate`、`break` |
 | `<ib-stepper>` / `<ib-stage>` | 分步播放器，按 `focus` 键联动高亮 |
@@ -89,14 +89,14 @@ Claude Code 也可作为插件安装：`/plugin marketplace add jieyuexing/inlin
 
 `compile.mjs` 遇到以下情况会输出 `ERROR line N: ...` 并以非零码退出：
 
-1. `vh` / `dvh` / `svh` / `lvh` 单位
-2. `html` 或 `body` 上的 `height: 100%`
-3. 指向 `http(s)` 的外部 `<link>`、`<script src>`、`@import`、`url()`
-4. 自定义 `<style>` 中写死的 `#hex` / `rgb()` / `hsl()` 色值
+1. CSS 上下文（`<style>` 与 `style=`）中的 `vh` / `dvh` / `svh` / `lvh` 单位
+2. 作用于 `html`、`body` 或 `:root` 选择器的 `height: 100%`
+3. 零外链（Skill 自加的离线/代理安全规定，宿主自身允许远程 URL）：URL 属性（`src`、`href`、`srcset`、`poster`、`data`、`action`、`formaction`、`xlink:href`，含无引号）中的 `http(s)://` 或 `//`，CSS `@import` / `url()`（含行内 `style=`），`<iframe>`/`<object>`/`<embed>`，以及 `<script>` 中的 `fetch(`、`XMLHttpRequest`、`import(` 和字符串外链（`data:` 与 `#id` 放行）
+4. `<style>`、行内 `style=` 或 SVG `fill`/`stroke`/`stop-color` 中写死的色值（`#hex`、`rgb()`、`hsl()`、`oklch()`、命名色）
 5. 缺少 `viewBox` 的原生 `<svg>`
-6. 非法图表数据：负数或非数字、悬空连线、重复节点 id、流程图或趋势图缺少 `caption`、趋势点少于 2 个
+6. 非法 DSL 结构与图表数据：未知或错位 `<ib-*>` 标签、`<ib-page>` 外非空内容、空值/非数字、`max` 小于最大值、未知 `tone`/`kind`/`curve`、流程图同格碰撞或列数溢出、空 `<ib-lane>`、悬空连线、重复节点 id、流程图或趋势图缺少 `caption`、趋势点少于 2 个
 
-连线标签超出间距、趋势图里程碑文字可能重叠时给出警告。
+连线标签超出间距、趋势图里程碑文字可能重叠、悬空 `focus` 键时给出警告。
 
 ## 本地使用与验证
 

@@ -1,19 +1,28 @@
 # T3 Code `html_render` contract
 
-This skill targets T3 Code's inline sandboxed iframe (`html_preview` + `html_render`). The compiler enforces the rules below statically; the 3-state preview checks what static analysis cannot.
+This skill targets T3 Code's inline sandboxed iframe (`html_preview` + `html_render`). Below, host rules are separated from stricter policies added by `inline-brief`; if a host detail ever diverges, the live `html_render` / `html_preview` tool description is authoritative.
 
 > Unofficial community skill built for T3 Code's `html_render`. Not affiliated with or endorsed by T3 Tools Inc.
 
-## Viewport and frame rules
+## T3 Code host facts
 
 - **Desktop thread width: `728px`.** Design for one or two columns; no wide 12-column dashboards or layouts that need `>= 1200px`.
-- **Mobile thread width: ~`360-390px`.** Every multi-column grid and dual-lane diagram must stack below `560px`.
-- **No outer shell.** Leave `html`, `body` and the outermost wrapper transparent: no background, no outer card border, no banner title, no horizontal page padding. T3 draws the frame on the thread surface with its own gutter.
-- **Height follows content.** Never use `vh`, `dvh`, `svh`/`lvh` or `height: 100%` on `html` or `body`; they cause iframe resize loops or rejection. Give charts and SVGs a `viewBox` aspect ratio or an explicit pixel height.
+- **Mobile thread width: ~`360-390px`.** Every multi-column grid and dual-lane diagram must stack below `560px` (`<ib-flow>` keeps a `540px` minimum width and scrolls horizontally inside its card).
+- **No outer shell.** Leave `html`, `body` and the outermost wrapper transparent: no background, no outer card border, no banner title, no horizontal page padding. T3 draws the frame on the thread surface and injects an overridable `8px` `html` gutter (`kit/base.css` sets `html, body { padding: 0 }` so component layouts align cleanly).
+- **Height follows content.** Never use `vh`, `dvh`, `svh`/`lvh` in CSS (`<style>` or `style=`) or `height: 100%` on `html` or `body`; they cause iframe resize loops or rejection. `html_render` takes a `height` from `80` to `2000` CSS px (mobile scrolls beyond that height). Give charts and SVGs a `viewBox` aspect ratio or an explicit pixel height.
+- **Remote URLs on the host.** T3 Code's `html_render` host allows remote URLs to load as-is, while `html_preview` blocks hostnames that resolve to private, reserved, or fake-IP addresses.
+- **Read-only iframe.** Inline scripts run for local UI state (steppers, hover cross-highlight, collapsible details) but cannot call back into the agent or persist storage across reloads.
+
+## Skill-enforced policy (`inline-brief`)
+
+To keep every compiled brief strictly self-contained and reliable offline or behind proxies (where remote fonts, CDN scripts, or images stall on fake-IP DNS), `inline-brief` enforces a **zero external requests** policy beyond the host minimum:
+
+- **Zero external URLs.** Forbids `http(s)://` and protocol-relative `//` in `src`, `href`, `srcset`, `poster`, `data`, `action`, `formaction`, `xlink:href` (quoted or unquoted), CSS `@import` and `url()` (`<style>` and inline `style=`), embedded `<iframe>`/`<object>`/`<embed>`, and `<script>` network calls (`fetch(`, `XMLHttpRequest`, `import(`, or external URL strings).
+- **Allowed local URIs.** `data:` URIs and page-local `#id` fragment anchors are allowed.
 
 ## Theme tokens (mandatory)
 
-Never hardcode hex, `rgb()` or `hsl()` colors in custom styles. Use T3's `:root` variables so the page follows Dark, Light and custom themes:
+Never hardcode hex, `rgb()`, `hsl()`, `oklch()` or named colors in styles or SVG paint attributes. Use T3's `:root` variables so the page follows Dark, Light and custom themes:
 
 | Role | Token | Notes |
 | --- | --- | --- |
@@ -27,23 +36,18 @@ Never hardcode hex, `rgb()` or `hsl()` colors in custom styles. Use T3's `:root`
 | Data series | `var(--chart-1)` .. `var(--chart-6)` | categorical series |
 | Typography | `var(--font-sans)`, `var(--font-mono)` | local system stack only |
 
-## Sandbox and offline guarantees
-
-- **Zero external requests.** No web fonts, CDN scripts or remote images. T3 previews block hostnames that resolve to private or reserved addresses (including fake-IP DNS from proxies), so external assets fail silently or stall.
-- **Read-only iframe.** Inline scripts run for local UI state (steppers, hover cross-highlight, collapsible details) but cannot call back into the agent or persist storage across reloads.
-
 ## Static gates enforced by `compile.mjs`
 
 Each violation is an `ERROR` with a source line number and a non-zero exit code:
 
-1. Viewport height units (`vh`, `dvh`, `svh`, `lvh`) anywhere in the source.
-2. `height: 100%` on `html` or `body`.
-3. External resources: `<link href="http...">`, `<script src="http...">`, `@import` or `url()` pointing at `http(s)://`.
-4. Hardcoded colors (`#hex`, `rgb(`, `hsl(`) inside a custom `<style>` block.
+1. Viewport height units (`vh`, `dvh`, `svh`, `lvh`) in CSS contexts (`<style>` blocks and `style=` attributes).
+2. `height: 100%` scoped to `html`, `body`, or `:root` selectors (or inline `style=` on `html`/`body`).
+3. External URLs (`http(s)://` or `//`) in URL attributes (`src`, `href`, `srcset`, `poster`, `data`, `action`, `formaction`, `xlink:href`, quoted or unquoted), CSS `@import` / `url()` (`<style>` and `style=`), `<iframe>`/`<object>`/`<embed>`, and `<script>` (`fetch(`, `XMLHttpRequest`, `import(`, external URL strings). `data:` and `#id` are allowed.
+4. Hardcoded colors (`#hex`, `rgb()`, `hsl()`, `oklch()` / `oklab()` / `lab()` / `lch()` / `hwb()` / `color()`, CSS named colors) in CSS declarations (`<style>` and `style=`) or SVG `fill`/`stroke`/`stop-color` attributes (`transparent`, `currentColor`, `inherit`, `none`, `var(--*)`, and `url(#...)` are allowed).
 5. A raw `<svg>` without `viewBox`.
-6. Invalid figure data: negative or non-numeric values, dangling edges (`from`/`to` that match no node), duplicate node ids, a missing `caption` on `<ib-flow>` or `<ib-trend>`, fewer than 2 `<ib-point>`.
+6. Invalid DSL structure or figure data: unknown or misplaced `<ib-*>` tags, content outside `<ib-page>`, empty/non-numeric values, `max` below the largest value, unknown `tone`/`kind`/`curve`, flow cell collisions or column overflow, empty `<ib-lane>`, dangling edges, duplicate node ids, missing `caption` on `<ib-flow>` or `<ib-trend>`, fewer than 2 `<ib-point>`.
 
-Warnings (exit code stays 0) flag labels likely to crowd on 728px, such as an edge label wider than the gap between adjacent nodes or two trend marks that would overlap.
+Warnings (exit code stays 0) flag labels likely to crowd on 728px (oversized edge labels, overlapping trend marks) and dangling `focus` keys on `<ib-stage>` or `.ib-ref`.
 
 ## 3-state QA checklist
 

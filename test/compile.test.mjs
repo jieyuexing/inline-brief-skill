@@ -579,3 +579,92 @@ test("kit CSS & runtime: focus highlight styles exist, dynamic .ib-ref works, an
   assert.equal(kpiA.classList.contains("ib-dim"), false);
   assert.equal(kpiB.classList.contains("ib-lit"), false);
 });
+
+test("gate 3 expanded: external URLs in attributes, unquoted attrs, inline style, embeds and scripts fail; data: and #id pass", () => {
+  const badAttrs = compileSource(
+    page(`<img src="https://img.example/a.png" />
+<img src=//cdn.example/b.png />
+<script src=https://cdn.example/x.js></script>
+<img srcset="a.png 1x, https://cdn.example/c.png 2x" />
+<video poster="//cdn.example/p.jpg"></video>
+<form action="https://evil.example/post"><button formaction="//evil.example/btn">Go</button></form>
+<svg viewBox="0 0 10 10"><image href="https://img.example/i.png"/><use xlink:href="//cdn.example/sprite.svg#a"/></svg>`)
+  );
+  for (const tagAttr of ["<img src>", "<script src>", "<img srcset>", "<video poster>", "<form action>", "<button formaction>", "<image href>", "<use xlink:href>"]) {
+    assert.ok(badAttrs.errors.some((e) => e.includes(tagAttr)), `missing error for ${tagAttr}`);
+  }
+
+  const badInlineStyle = compileSource(
+    page(`<div style="background: url(https://cdn.example/bg.png)">x</div>
+<div style="background: url('//cdn.example/bg2.png')">y</div>`)
+  );
+  assert.equal(badInlineStyle.errors.filter((e) => e.includes("external CSS url() forbidden")).length, 2);
+
+  const badEmbeds = compileSource(
+    page(`<iframe src="https://example.com"></iframe>
+<object data="https://example.com/app"></object>
+<embed src="/local.swf" />`)
+  );
+  assert.ok(badEmbeds.errors.some((e) => e.includes("embedded <iframe> forbidden")));
+  assert.ok(badEmbeds.errors.some((e) => e.includes("embedded <object> forbidden")));
+  assert.ok(badEmbeds.errors.some((e) => e.includes("<object data>")));
+  assert.ok(badEmbeds.errors.some((e) => e.includes("embedded <embed> forbidden")));
+
+  const badScript = compileSource(
+    page(`<script>
+  fetch("/local");
+  const x = new XMLHttpRequest();
+  import("./mod.js");
+  const u = "https://api.example/v1";
+  const p = "//cdn.example/lib.js";
+</script>`)
+  );
+  assert.ok(badScript.errors.some((e) => e.includes('"fetch(" forbidden')));
+  assert.ok(badScript.errors.some((e) => e.includes('"XMLHttpRequest" forbidden')));
+  assert.ok(badScript.errors.some((e) => e.includes('"import(" forbidden')));
+  assert.equal(badScript.errors.filter((e) => e.includes("external URL in <script> string forbidden")).length, 2);
+
+  const allowedLocal = compileSource(
+    page(`<a href="#section">Jump</a>
+<img src="data:image/png;base64,AAAA" />
+<div style="background: url(data:image/svg+xml,%3Csvg/%3E)">ok</div>
+<svg viewBox="0 0 10 10"><use href="#icon"/><rect fill="url(#grad)" width="10" height="10"/></svg>
+<script>/* fetch("https://commented.example") */ const ok = "#section"; const d = "data:text/plain,ok";</script>`)
+  );
+  assert.deepEqual(allowedLocal.errors, []);
+});
+
+test("distribution manifests share name, version, license, repository, unofficial notice and generator tag", () => {
+  const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
+  const rootPlugin = JSON.parse(readFileSync(join(ROOT, "plugin.json"), "utf8"));
+  const claudePlugin = JSON.parse(readFileSync(join(ROOT, ".claude-plugin/plugin.json"), "utf8"));
+  const marketplace = JSON.parse(readFileSync(join(ROOT, ".claude-plugin/marketplace.json"), "utf8"));
+  const marketPlugin = marketplace.plugins[0];
+
+  const normRepo = (r) => (typeof r === "string" ? r : r?.url || "").replace(/^git\+/, "").replace(/\.git$/, "");
+  const manifests = [
+    ["package.json", pkg],
+    ["plugin.json", rootPlugin],
+    [".claude-plugin/plugin.json", claudePlugin],
+    [".claude-plugin/marketplace.json#plugins[0]", marketPlugin],
+  ];
+
+  assert.equal(pkg.version, "0.1.1");
+  assert.equal(marketplace.name, pkg.name);
+  assert.match(marketplace.metadata.description, /Unofficial community skill/i);
+
+  for (const [label, m] of manifests) {
+    assert.equal(m.name, pkg.name, `${label} name mismatch`);
+    assert.equal(m.version, pkg.version, `${label} version mismatch`);
+    assert.equal(m.license, pkg.license, `${label} license mismatch`);
+    assert.equal(normRepo(m.repository), normRepo(pkg.repository), `${label} repository mismatch`);
+    assert.match(m.description, /Unofficial community skill/i, `${label} missing unofficial notice`);
+  }
+
+  const compiled = compileSource(page(`<p>hello</p>`));
+  assert.match(compiled.html, new RegExp(`<meta name="generator" content="inline-brief ${pkg.version.replace(".", "\\.")}" />`));
+
+  const verOut = spawnSync(process.execPath, [CLI, "--version"], { encoding: "utf8" });
+  assert.equal(verOut.status, 0);
+  assert.equal(verOut.stdout.trim(), pkg.version);
+});

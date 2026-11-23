@@ -33,7 +33,7 @@ Turn complex systems, diagnostics and comparisons into compact interactive visua
 - **Show mechanisms, not label boxes.** Every `<ib-edge>` carries an action verb. For two-sided comparisons use sequential `<ib-lanes>` with `gate` (decision) and `break` (failure or gap) steps instead of two prose columns.
 - **Use `<ib-trend>` for change over time**, with `mark` on the events that explain the curve (release, migration, incident).
 - **Interactive when motion clarifies.** Add `<ib-stepper>` plus `focus` keys for multi-step flows, state transitions and feedback loops.
-- **Strict sandbox hygiene.** No external URLs, no `vh`/`dvh` units, no `height: 100%` on `html`/`body`, no outer page background, border or padding, and theme variables only (`--card`, `--border`, `--foreground`, `--chart-1..6`, `--success`, `--warning`, `--destructive`, `--info`).
+- **Strict sandbox & self-contained hygiene.** While the T3 host allows remote URLs, this skill strictly forbids external URLs (`http(s)://` / `//`), `<iframe>`/`<object>`/`<embed>`, and script network calls (`fetch(`, `XMLHttpRequest`, `import(`) so briefs stay offline/proxy-safe (`data:` and `#id` are allowed). No `vh`/`dvh` units or `height: 100%` on `html`/`body`/` :root`, no outer page shell, and theme variables only (`--card`, `--border`, `--foreground`, `--chart-1..6`, `--success`, `--warning`, `--destructive`, `--info`). See `references/t3-contract.md` for host facts vs. skill policy.
 - **Every figure earns a caption** that states its claim.
 
 ## Files
