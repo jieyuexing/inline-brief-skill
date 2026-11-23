@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
-import { compileSource } from "../skills/inline-brief/scripts/compile.mjs";
+import { compileSource, VERSION } from "../skills/inline-brief/scripts/compile.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "skills/inline-brief/scripts/compile.mjs");
@@ -649,7 +649,7 @@ test("distribution manifests share name, version, license, repository, unofficia
     [".claude-plugin/marketplace.json#plugins[0]", marketPlugin],
   ];
 
-  assert.equal(pkg.version, "0.1.1");
+  assert.equal(pkg.version, VERSION, "package.json version must match compile.mjs VERSION");
   assert.equal(marketplace.name, pkg.name);
   assert.match(marketplace.metadata.description, /Unofficial community skill/i);
 

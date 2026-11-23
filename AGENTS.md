@@ -38,6 +38,7 @@ test/compile.test.mjs  node:test suite (no dependencies)
 
 - Test: `node --test test/*.test.mjs`
 - Rebuild committed examples after changing the compiler or kit: `npm run build:examples` (CI fails if `examples/*.html` are stale).
+- Release: bump `VERSION` in `compile.mjs` and the four manifests (`package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`) together; the test suite fails on any mismatch.
 - Keep `compile.mjs` dependency-free and add a failing sample test for every new static check.
 
 ## 中文摘要

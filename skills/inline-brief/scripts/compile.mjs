@@ -6,29 +6,15 @@
  * Usage:
  *   node scripts/compile.mjs <input.src.html> [output.html] [--check]
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KIT_DIR = resolve(__dirname, "../kit");
 
-function readSkillVersion() {
-  try {
-    const pkgPath = resolve(__dirname, "../../../package.json");
-    if (existsSync(pkgPath)) {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-      if (pkg && typeof pkg.version === "string" && pkg.version.trim()) {
-        return pkg.version.trim();
-      }
-    }
-  } catch {
-    // Standalone copied skill directory without repo root package.json
-  }
-  return "0.1.1";
-}
-
-const VERSION = readSkillVersion();
+// Single version source for every install path (copied skill directories ship without package.json).
+export const VERSION = "0.1.1";
 
 const TONE_STROKE = {
   neutral: "var(--border)",
