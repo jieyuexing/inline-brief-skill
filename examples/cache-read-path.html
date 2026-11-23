@@ -45,6 +45,14 @@ html, body {
   transition: border-color 140ms ease, opacity 140ms ease;
 }
 
+.ib-kpi[data-focus] {
+  cursor: pointer;
+}
+
+.ib-kpi.ib-lit {
+  border-color: var(--info);
+}
+
 .ib-card {
   padding: 16px;
 }
@@ -120,6 +128,25 @@ html, body {
   grid-template-columns: minmax(96px, 148px) 1fr auto;
   align-items: center;
   gap: 10px;
+  transition: opacity 140ms ease;
+}
+
+.ib-bar-row[data-focus] {
+  cursor: pointer;
+}
+
+.ib-bar-row.ib-lit .ib-bar-lbl {
+  color: var(--info);
+  font-weight: 600;
+}
+
+.ib-bar-row.ib-lit .ib-bar-track {
+  box-shadow: 0 0 0 1px var(--info);
+}
+
+.ib-bar-row.ib-lit .ib-bar-num {
+  color: var(--foreground);
+  font-weight: 600;
 }
 
 .ib-bar-lbl {
@@ -220,6 +247,14 @@ html, body {
 
 .ib-pt {
   transition: opacity 160ms ease;
+}
+
+.ib-pt[data-focus] {
+  cursor: pointer;
+}
+
+.ib-pt.ib-lit circle {
+  stroke-width: 2.6;
 }
 
 /* Swimlanes */
@@ -689,13 +724,20 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
 <script>
 (() => {
   const focusables = () => Array.from(document.querySelectorAll("[data-focus]"));
-  let pinnedKeys = null;
+  let userPinnedKeys = null;
+  let activeStepper = null;
+  let hoveredEl = null;
+  const steppers = [];
 
   function parseKeys(val) {
     return (val || "")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+  }
+
+  function currentPinnedKeys() {
+    return userPinnedKeys ?? (activeStepper ? activeStepper.pinnedKeys : null);
   }
 
   function applyFocus(keys) {
@@ -715,20 +757,48 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
     });
   }
 
-  // Hover & click cross-highlighting
-  focusables().forEach((el) => {
+  function stopOtherPlayers(except) {
+    for (const s of steppers) {
+      if (s !== except) s.stopPlay();
+    }
+  }
+
+  // Delegated hover & click cross-highlighting (keeps dynamic .ib-ref elements active)
+  document.addEventListener("mouseover", (e) => {
+    const el = e.target && e.target.closest ? e.target.closest("[data-focus]") : null;
+    if (el === hoveredEl) return;
+    hoveredEl = el;
+    if (!el) {
+      applyFocus(currentPinnedKeys());
+      return;
+    }
     const keys = parseKeys(el.getAttribute("data-focus"));
-    if (!keys.length) return;
-    el.addEventListener("mouseenter", () => applyFocus(keys));
-    el.addEventListener("mouseleave", () => applyFocus(pinnedKeys));
-    el.addEventListener("click", () => {
-      const same = pinnedKeys && pinnedKeys.join(",") === keys.join(",");
-      pinnedKeys = same ? null : keys;
-      applyFocus(pinnedKeys);
-    });
+    if (keys.length) applyFocus(keys);
   });
 
-  // Stepper widgets
+  document.addEventListener("mouseout", (e) => {
+    if (!hoveredEl) return;
+    const next = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest("[data-focus]") : null;
+    if (next === hoveredEl) return;
+    hoveredEl = null;
+    applyFocus(currentPinnedKeys());
+  });
+
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.closest && e.target.closest(".ib-stepper-btns")) return;
+    const el = e.target && e.target.closest ? e.target.closest("[data-focus]") : null;
+    if (!el) return;
+    const keys = parseKeys(el.getAttribute("data-focus"));
+    if (!keys.length) return;
+    const prev = currentPinnedKeys();
+    const same = prev && prev.join(",") === keys.join(",");
+    stopOtherPlayers(null);
+    activeStepper = null;
+    userPinnedKeys = same ? null : keys;
+    applyFocus(currentPinnedKeys());
+  });
+
+  // Stepper widgets (isolated per-instance state)
   document.querySelectorAll(".ib-stepper").forEach((root) => {
     const stages = Array.from(root.querySelectorAll(".ib-stage-data"));
     if (!stages.length) return;
@@ -740,13 +810,18 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
     const playBtn = root.querySelector('[data-act="play"]');
     const resetBtn = root.querySelector('[data-act="reset"]');
 
-    let idx = 0;
-    let timer = null;
+    const state = {
+      idx: 0,
+      timer: null,
+      pinnedKeys: null,
+      stopPlay,
+    };
+    steppers.push(state);
 
     function stopPlay() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
+      if (state.timer) {
+        clearInterval(state.timer);
+        state.timer = null;
       }
       if (playBtn) {
         playBtn.setAttribute("aria-pressed", "false");
@@ -755,44 +830,51 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
     }
 
     function show(nextIdx, syncFocus = true) {
-      idx = (nextIdx + stages.length) % stages.length;
-      const st = stages[idx];
-      if (titleEl) titleEl.textContent = `${idx + 1}/${stages.length} · ${st.dataset.title || ""}`;
+      state.idx = (nextIdx + stages.length) % stages.length;
+      const st = stages[state.idx];
+      if (titleEl) titleEl.textContent = `${state.idx + 1}/${stages.length} · ${st.dataset.title || ""}`;
       if (bodyEl) bodyEl.innerHTML = st.innerHTML;
-      dots.forEach((d, i) => d.classList.toggle("is-active", i === idx));
+      dots.forEach((d, i) => d.classList.toggle("is-active", i === state.idx));
       if (syncFocus) {
         const keys = parseKeys(st.dataset.stageFocus);
-        pinnedKeys = keys.length ? keys : null;
-        applyFocus(pinnedKeys);
+        state.pinnedKeys = keys.length ? keys : null;
+        activeStepper = state;
+        userPinnedKeys = null;
+        applyFocus(currentPinnedKeys());
       }
     }
 
     dots.forEach((d, i) =>
       d.addEventListener("click", () => {
-        stopPlay();
+        stopOtherPlayers(null);
         show(i, true);
       })
     );
-    if (prevBtn) prevBtn.addEventListener("click", () => { stopPlay(); show(idx - 1, true); });
-    if (nextBtn) nextBtn.addEventListener("click", () => { stopPlay(); show(idx + 1, true); });
+    if (prevBtn) prevBtn.addEventListener("click", () => { stopOtherPlayers(null); show(state.idx - 1, true); });
+    if (nextBtn) nextBtn.addEventListener("click", () => { stopOtherPlayers(null); show(state.idx + 1, true); });
     if (resetBtn) {
       resetBtn.addEventListener("click", () => {
         stopPlay();
-        pinnedKeys = null;
-        applyFocus(null);
+        state.pinnedKeys = null;
+        if (activeStepper === state) {
+          activeStepper = null;
+          userPinnedKeys = null;
+        }
+        applyFocus(currentPinnedKeys());
         show(0, false);
       });
     }
     if (playBtn) {
       playBtn.addEventListener("click", () => {
-        if (timer) {
+        if (state.timer) {
           stopPlay();
           return;
         }
+        stopOtherPlayers(state);
         playBtn.setAttribute("aria-pressed", "true");
         playBtn.textContent = "❚❚ Pause";
-        show(idx, true);
-        timer = setInterval(() => show(idx + 1, true), 2200);
+        show(state.idx, true);
+        state.timer = setInterval(() => show(state.idx + 1, true), 2200);
       });
     }
 

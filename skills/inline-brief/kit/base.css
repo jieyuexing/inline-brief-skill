@@ -38,6 +38,14 @@ html, body {
   transition: border-color 140ms ease, opacity 140ms ease;
 }
 
+.ib-kpi[data-focus] {
+  cursor: pointer;
+}
+
+.ib-kpi.ib-lit {
+  border-color: var(--info);
+}
+
 .ib-card {
   padding: 16px;
 }
@@ -113,6 +121,25 @@ html, body {
   grid-template-columns: minmax(96px, 148px) 1fr auto;
   align-items: center;
   gap: 10px;
+  transition: opacity 140ms ease;
+}
+
+.ib-bar-row[data-focus] {
+  cursor: pointer;
+}
+
+.ib-bar-row.ib-lit .ib-bar-lbl {
+  color: var(--info);
+  font-weight: 600;
+}
+
+.ib-bar-row.ib-lit .ib-bar-track {
+  box-shadow: 0 0 0 1px var(--info);
+}
+
+.ib-bar-row.ib-lit .ib-bar-num {
+  color: var(--foreground);
+  font-weight: 600;
 }
 
 .ib-bar-lbl {
@@ -213,6 +240,14 @@ html, body {
 
 .ib-pt {
   transition: opacity 160ms ease;
+}
+
+.ib-pt[data-focus] {
+  cursor: pointer;
+}
+
+.ib-pt.ib-lit circle {
+  stroke-width: 2.6;
 }
 
 /* Swimlanes */
