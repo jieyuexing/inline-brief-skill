@@ -24,7 +24,7 @@ Two to four columns on desktop, two on mobile.
 </ib-bars>
 ```
 
-`value` must be a non-negative number. Omit `max` to scale to the largest bar. `caption` is optional but recommended.
+`value` must be a non-negative number. Omit `max` to scale to the largest bar; a `max` below the largest bar is an error. `caption` is optional but recommended.
 
 ## 3. `<ib-trend>` - line and area trend chart
 
@@ -61,7 +61,7 @@ Places nodes on a 1-indexed `(col, row)` grid and routes labeled SVG edges, so y
 - `caption` is required. Node `id` is required and unique; `col`/`row` are positive integers (use 1-4 columns for 728px).
 - `<ib-edge>`: `from`/`to` must match node ids. `curve` is `auto` (default), `top` or `bottom` (back edges and loops; avoid two curves on the same side that share an endpoint). `dashed` draws a dashed line.
 - Labels on edges between horizontally adjacent nodes must be short; the compiler warns when they exceed the gap.
-- On narrow screens the diagram scales down with the card, so keep labels short.
+- Below 560px the flow diagram keeps a 540px minimum width and scrolls horizontally inside its card to stay legible; keep labels short so desktop and mobile stay crisp.
 
 ## 5. `<ib-lanes>` - sequential swimlane comparison
 
