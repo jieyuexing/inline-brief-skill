@@ -1,0 +1,36 @@
+{
+  "name": "inline-brief-skill",
+  "version": "0.1.0",
+  "description": "Agent skill that turns evidence into interactive, theme-native inline visuals for T3 Code's html_render. Zero dependencies. Unofficial community skill, not affiliated with T3 Tools Inc.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "inline-brief": "skills/inline-brief/scripts/compile.mjs"
+  },
+  "files": [
+    "skills",
+    "examples",
+    "plugin.json",
+    ".claude-plugin",
+    "llms.txt",
+    "README.md",
+    "README.zh-CN.md",
+    "AGENTS.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build:examples": "node skills/inline-brief/scripts/compile.mjs examples/cache-read-path.src.html examples/cache-read-path.html && node skills/inline-brief/scripts/compile.mjs examples/repo-health-audit.src.html examples/repo-health-audit.html"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jieyuexing/inline-brief-skill.git"
+  },
+  "homepage": "https://github.com/jieyuexing/inline-brief-skill#readme",
+  "bugs": {
+    "url": "https://github.com/jieyuexing/inline-brief-skill/issues"
+  },
+  "keywords": ["agent-skill", "t3-code", "html-render", "visualization", "svg", "claude-code", "codex"]
+}

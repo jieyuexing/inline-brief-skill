@@ -1,0 +1,17 @@
+{
+  "name": "inline-brief-skill",
+  "owner": { "name": "jieyuexing", "url": "https://github.com/jieyuexing" },
+  "metadata": {
+    "description": "Inline visual briefs for T3 Code's html_render. Unofficial community skill."
+  },
+  "plugins": [
+    {
+      "name": "inline-brief-skill",
+      "source": "./",
+      "description": "Turn evidence into interactive, theme-native inline visuals for T3 Code's html_render. Zero dependencies.",
+      "version": "0.1.0",
+      "license": "MIT",
+      "keywords": ["skill", "t3-code", "html-render", "visualization"]
+    }
+  ]
+}

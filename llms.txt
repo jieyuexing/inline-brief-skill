@@ -1,0 +1,24 @@
+# inline-brief-skill
+
+> Agent skill and zero-dependency Node compiler that turns a short `<ib-*>` source file into a self-contained, theme-native HTML page for T3 Code's inline `html_preview` / `html_render` tools. Components: KPI strip, line/area trend chart with milestone marks, zero-baseline bars, auto-routed flow diagrams, swimlanes, step-through player. Statically enforces the html_render sandbox contract. Unofficial community skill; not affiliated with or endorsed by T3 Tools Inc.
+
+## Start here
+
+- [SKILL.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/skills/inline-brief/SKILL.md): skill entry point and workflow
+- [AGENTS.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/AGENTS.md): install and usage for coding agents
+
+## Reference
+
+- [components.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/skills/inline-brief/references/components.md): every `<ib-*>` tag and attribute
+- [visual-grammar.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/skills/inline-brief/references/visual-grammar.md): which pattern to pick for which question
+- [t3-contract.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/skills/inline-brief/references/t3-contract.md): html_render viewport, theme token and static-gate rules
+
+## Examples
+
+- [cache-read-path.src.html](https://github.com/jieyuexing/inline-brief-skill/blob/main/examples/cache-read-path.src.html)
+- [repo-health-audit.src.html](https://github.com/jieyuexing/inline-brief-skill/blob/main/examples/repo-health-audit.src.html)
+
+## Optional
+
+- [README.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/README.md)
+- [README.zh-CN.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/README.zh-CN.md)

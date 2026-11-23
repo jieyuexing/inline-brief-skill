@@ -1,0 +1,59 @@
+<ib-page title="Cache read path: where the milliseconds go" lang="en">
+
+  <ib-kpis>
+    <ib-kpi label="p50 read latency" value="0.4 ms" sub="L1 hit, in-process" tone="ok" focus="l1"></ib-kpi>
+    <ib-kpi label="p99 read latency" value="38 ms" sub="dominated by cold reads" tone="warn" focus="db"></ib-kpi>
+    <ib-kpi label="Combined hit ratio" value="96.8%" sub="L1 88.1% + L2 8.7%" tone="info" focus="l1,l2"></ib-kpi>
+    <ib-kpi label="Origin QPS saved" value="-97%" sub="vs. no cache layer" tone="ok" focus="db"></ib-kpi>
+  </ib-kpis>
+
+  <ib-flow title="Two-tier read path (hover a node, or step through below)" note="Sample load test · illustrative numbers" caption="Claim: a request only reaches Postgres after both tiers miss, and the answer is written back to both so the next read is local.">
+    <ib-node id="client" col="1" row="1" sub="GET /items/42" focus="client">Client</ib-node>
+    <ib-node id="l1" col="2" row="1" sub="in-process LRU" tone="info" focus="l1">L1 cache</ib-node>
+    <ib-node id="l2" col="3" row="1" sub="shared, 2 ms RTT" tone="info" focus="l2">L2 Redis</ib-node>
+    <ib-node id="db" col="4" row="1" sub="source of truth" tone="warn" focus="db">Postgres</ib-node>
+
+    <ib-edge from="client" to="l1" label="get" tone="info" focus="client,l1"></ib-edge>
+    <ib-edge from="l1" to="l2" label="miss" tone="warn" focus="l1,l2"></ib-edge>
+    <ib-edge from="l2" to="db" label="miss" tone="warn" focus="l2,db"></ib-edge>
+    <ib-edge from="l1" to="client" label="hit · 0.4 ms" tone="ok" curve="top" focus="client,l1"></ib-edge>
+    <ib-edge from="db" to="l1" label="backfill L1 + L2" tone="ok" dashed curve="bottom" focus="db,fill"></ib-edge>
+  </ib-flow>
+
+  <ib-stepper title="Walk one cold read" note="Click a step or press Play; the diagram above follows along">
+    <ib-stage title="Request arrives" focus="client,l1">The handler asks <span class="ib-ref" data-focus="l1">L1</span> first. A hit returns in well under a millisecond and the walk ends here.</ib-stage>
+    <ib-stage title="L1 misses, L2 is asked" focus="l1,l2">The key is absent or expired locally, so the same key is fetched from <span class="ib-ref" data-focus="l2">Redis</span> over the network.</ib-stage>
+    <ib-stage title="Both tiers miss" focus="l2,db">Only now does the request reach <span class="ib-ref" data-focus="db">Postgres</span>. A single-flight lock keeps concurrent misses on the same key down to one query.</ib-stage>
+    <ib-stage title="Backfill both tiers" focus="db,fill">The row is written to Redis and L1 with a jittered TTL, so the next reader stays on the fast path.</ib-stage>
+  </ib-stepper>
+
+  <ib-lanes title="Cold read vs. warm read" note="Steps in execution order; GATE = guard, BREAK = slow or failure-prone hop" caption="The cold path costs two network hops and one lock; the warm path costs none of them.">
+    <ib-lane name="Cold read" tone="warn">
+      <ib-step kind="action" note="miss · ~0.1 ms" focus="l1">Look up L1</ib-step>
+      <ib-step kind="action" note="miss · ~2 ms" focus="l2">Look up Redis</ib-step>
+      <ib-step kind="gate" note="one query per key" focus="db">Take single-flight lock</ib-step>
+      <ib-step kind="break" note="~38 ms at p99" focus="db">Query Postgres</ib-step>
+      <ib-step kind="action" note="async, off the hot path" focus="fill">Backfill both tiers</ib-step>
+    </ib-lane>
+    <ib-lane name="Warm read" tone="ok">
+      <ib-step kind="action" note="hit · ~0.4 ms" focus="l1">Look up L1</ib-step>
+      <ib-step kind="action" note="no network hop" focus="client">Return to client</ib-step>
+      <ib-step kind="gate" note="refresh at 80% of TTL" focus="fill">Revalidate in background</ib-step>
+    </ib-lane>
+  </ib-lanes>
+
+  <ib-bars title="p99 latency by path" note="Sample load test · same hardware, same key set" unit="ms" caption="A cold read is ~95x slower than an L1 hit, and a stampede without the lock is another ~5x worse.">
+    <ib-bar label="L1 hit" value="0.4" tone="ok" focus="l1"></ib-bar>
+    <ib-bar label="L2 hit" value="2.1" tone="info" focus="l2"></ib-bar>
+    <ib-bar label="Cold read (locked)" value="38" tone="warn" focus="db"></ib-bar>
+    <ib-bar label="Stampede (no lock)" value="212" tone="danger" focus="db"></ib-bar>
+  </ib-bars>
+
+  <ib-details summary="Method and how to reproduce (expand)">
+    <div>All figures are illustrative sample data for this demo, not a benchmark of any real system. To collect equivalent numbers on your own service:</div>
+    <pre><code>redis-cli --latency-history -i 1
+psql -c "EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM items WHERE id = 42"
+for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080/items/42; done | sort -n | tail -3</code></pre>
+  </ib-details>
+
+</ib-page>

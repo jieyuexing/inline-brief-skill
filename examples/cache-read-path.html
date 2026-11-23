@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cache read path: where the milliseconds go</title>
+<style>
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ib-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ib-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ib-kpis {
+  display: grid;
+  grid-template-columns: repeat(var(--ib-kpi-cols, 4), minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ib-card, .ib-kpi {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+}
+
+.ib-kpi {
+  padding: 12px 14px;
+  transition: border-color 140ms ease, opacity 140ms ease;
+}
+
+.ib-card {
+  padding: 16px;
+}
+
+.ib-kpi-label {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+
+.ib-kpi-val {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.ib-kpi-sub {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-top: 3px;
+}
+
+.ib-tone-info { color: var(--info); }
+.ib-tone-ok { color: var(--success); }
+.ib-tone-warn { color: var(--warning); }
+.ib-tone-danger { color: var(--destructive); }
+
+.ib-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ib-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.ib-note {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.ib-caption {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.ib-caption strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* Bars */
+.ib-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ib-bar-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 148px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.ib-bar-lbl {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ib-bar-track {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--secondary);
+  overflow: hidden;
+}
+
+.ib-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+}
+
+.ib-fill-neutral { background: var(--chart-1); }
+.ib-fill-info { background: var(--info); }
+.ib-fill-ok { background: var(--success); }
+.ib-fill-warn { background: var(--warning); }
+.ib-fill-danger { background: var(--destructive); }
+
+.ib-bar-num {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  min-width: 52px;
+  text-align: right;
+}
+
+/* Flow SVG */
+.ib-flow-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.ib-flow-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.ib-node, .ib-edge {
+  transition: opacity 160ms ease, filter 160ms ease;
+}
+
+.ib-node[data-focus] {
+  cursor: pointer;
+}
+
+.ib-dim {
+  opacity: 0.28;
+}
+
+.ib-lit rect.ib-node-box {
+  stroke-width: 2.2;
+}
+
+.ib-lit path.ib-edge-path {
+  stroke-width: 2.3;
+}
+
+/* Trend chart */
+.ib-chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.ib-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.ib-head-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ib-unit {
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.ib-pt {
+  transition: opacity 160ms ease;
+}
+
+/* Swimlanes */
+.ib-lanes {
+  display: grid;
+  grid-template-columns: repeat(var(--ib-lane-cols, 2), minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ib-lane {
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ib-lane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ib-step {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 8px 10px;
+  position: relative;
+  transition: border-color 140ms ease, opacity 140ms ease;
+}
+
+.ib-step[data-focus] {
+  cursor: pointer;
+}
+
+.ib-step.ib-lit {
+  border-color: var(--info);
+}
+
+.ib-step-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.ib-step-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.ib-step-note {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.ib-kind {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  padding: 1px 6px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.ib-kind-gate {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.ib-kind-break {
+  color: var(--destructive);
+  border-color: var(--destructive);
+}
+
+.ib-kind-action {
+  color: var(--info);
+  border-color: var(--info);
+}
+
+.ib-step-arrow {
+  text-align: center;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted-foreground);
+  user-select: none;
+}
+
+/* Stepper */
+.ib-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ib-stepper-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ib-stepper-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ib-btn {
+  appearance: none;
+  background: var(--secondary);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-family: var(--font-sans, sans-serif);
+  cursor: pointer;
+}
+
+.ib-btn:hover {
+  border-color: var(--ring, var(--info));
+}
+
+.ib-btn[aria-pressed="true"] {
+  border-color: var(--info);
+  color: var(--info);
+}
+
+.ib-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ib-dot {
+  appearance: none;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ib-dot.is-active {
+  background: var(--info);
+  border-color: var(--info);
+  color: var(--card);
+  font-weight: 700;
+}
+
+.ib-stage-box {
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 10px 12px;
+}
+
+.ib-stage-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 3px;
+}
+
+.ib-stage-body {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Inline focus refs */
+.ib-ref {
+  border-bottom: 1px dashed var(--info);
+  color: var(--foreground);
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+.ib-ref.ib-lit {
+  background: var(--accent-surface, var(--secondary));
+  color: var(--info);
+}
+
+/* Folded details */
+details.ib-fold {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: 10px 14px;
+}
+
+details.ib-fold summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  list-style: none;
+}
+
+details.ib-fold summary::before {
+  content: "▸ ";
+  color: var(--info);
+}
+
+details.ib-fold[open] summary::before {
+  content: "▾ ";
+}
+
+details.ib-fold .ib-fold-body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+details.ib-fold pre {
+  margin: 6px 0 0;
+  padding: 10px;
+  border-radius: calc(var(--radius, 8px) - 2px);
+  background: var(--code-background, var(--secondary));
+  overflow-x: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--foreground);
+}
+
+@media (max-width: 560px) {
+  .ib-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ib-grid-2, .ib-lanes { grid-template-columns: 1fr; }
+  .ib-bar-row { grid-template-columns: minmax(112px, 140px) 1fr auto; }
+  .ib-flow-svg { min-width: 540px; }
+}
+
+</style>
+</head>
+<body>
+<div class="ib-stack">
+<div class="ib-kpis" style="--ib-kpi-cols:4"><div class="ib-kpi" data-focus="l1">
+        <div class="ib-kpi-label">p50 read latency</div>
+        <div class="ib-kpi-val ib-tone-ok">0.4 ms</div>
+        <div class="ib-kpi-sub">L1 hit, in-process</div>
+      </div>
+<div class="ib-kpi" data-focus="db">
+        <div class="ib-kpi-label">p99 read latency</div>
+        <div class="ib-kpi-val ib-tone-warn">38 ms</div>
+        <div class="ib-kpi-sub">dominated by cold reads</div>
+      </div>
+<div class="ib-kpi" data-focus="l1,l2">
+        <div class="ib-kpi-label">Combined hit ratio</div>
+        <div class="ib-kpi-val ib-tone-info">96.8%</div>
+        <div class="ib-kpi-sub">L1 88.1% + L2 8.7%</div>
+      </div>
+<div class="ib-kpi" data-focus="db">
+        <div class="ib-kpi-label">Origin QPS saved</div>
+        <div class="ib-kpi-val ib-tone-ok">-97%</div>
+        <div class="ib-kpi-sub">vs. no cache layer</div>
+      </div></div>
+
+  <div class="ib-card">
+    <div class="ib-head">
+      <div class="ib-title">Two-tier read path (hover a node, or step through below)</div>
+      <div class="ib-note">Sample load test · illustrative numbers</div>
+    </div>
+    <div class="ib-flow-wrap">
+      <svg class="ib-flow-svg" viewBox="0 0 680 152" width="680" height="152" preserveAspectRatio="xMidYMid meet">
+        <defs><marker id="ib-arr-2-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="var(--muted-foreground)" /></marker><marker id="ib-arr-2-info" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="var(--info)" /></marker><marker id="ib-arr-2-ok" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="var(--success)" /></marker><marker id="ib-arr-2-warn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="var(--warning)" /></marker><marker id="ib-arr-2-danger" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="var(--destructive)" /></marker></defs>
+        <g class="ib-edge" data-focus="client,l1"><path class="ib-edge-path" d="M 132 74 L 187 74" fill="none" stroke="var(--info)" stroke-width="1.5" marker-end="url(#ib-arr-2-info)" /></g>
+<g class="ib-edge" data-focus="l1,l2"><path class="ib-edge-path" d="M 310 74 L 365 74" fill="none" stroke="var(--warning)" stroke-width="1.5" marker-end="url(#ib-arr-2-warn)" /></g>
+<g class="ib-edge" data-focus="l2,db"><path class="ib-edge-path" d="M 488 74 L 543 74" fill="none" stroke="var(--warning)" stroke-width="1.5" marker-end="url(#ib-arr-2-warn)" /></g>
+<g class="ib-edge" data-focus="client,l1"><path class="ib-edge-path" d="M 250 46 L 250 18 L 72 18 L 72 43" fill="none" stroke="var(--success)" stroke-width="1.5" marker-end="url(#ib-arr-2-ok)" /></g>
+<g class="ib-edge" data-focus="db,fill"><path class="ib-edge-path" d="M 606 102 L 606 132 L 250 132 L 250 105" fill="none" stroke="var(--success)" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ib-arr-2-ok)" /></g>
+        <g class="ib-node" data-focus="client">
+        <rect class="ib-node-box" x="12" y="46" width="120" height="56" rx="7" fill="var(--secondary)" stroke="var(--border)" stroke-width="1.4" />
+        <text x="72.0" y="69.0" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--foreground)">Client</text>
+        <text x="72.0" y="86.0" text-anchor="middle" font-size="9" fill="var(--muted-foreground)">GET /items/42</text>
+      </g>
+<g class="ib-node" data-focus="l1">
+        <rect class="ib-node-box" x="190" y="46" width="120" height="56" rx="7" fill="var(--secondary)" stroke="var(--info)" stroke-width="1.4" />
+        <text x="250.0" y="69.0" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--info)">L1 cache</text>
+        <text x="250.0" y="86.0" text-anchor="middle" font-size="9" fill="var(--muted-foreground)">in-process LRU</text>
+      </g>
+<g class="ib-node" data-focus="l2">
+        <rect class="ib-node-box" x="368" y="46" width="120" height="56" rx="7" fill="var(--secondary)" stroke="var(--info)" stroke-width="1.4" />
+        <text x="428.0" y="69.0" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--info)">L2 Redis</text>
+        <text x="428.0" y="86.0" text-anchor="middle" font-size="9" fill="var(--muted-foreground)">shared, 2 ms RTT</text>
+      </g>
+<g class="ib-node" data-focus="db">
+        <rect class="ib-node-box" x="546" y="46" width="120" height="56" rx="7" fill="var(--secondary)" stroke="var(--warning)" stroke-width="1.4" />
+        <text x="606.0" y="69.0" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--warning)">Postgres</text>
+        <text x="606.0" y="86.0" text-anchor="middle" font-size="9" fill="var(--muted-foreground)">source of truth</text>
+      </g>
+        <g class="ib-edge" data-focus="client,l1">
+          <rect x="139.5" y="52.0" width="40" height="16" rx="8" fill="var(--card)" stroke="var(--border)" stroke-width="0.9" />
+          <text x="159.5" y="63.2" text-anchor="middle" font-size="9" font-weight="600" fill="var(--info)">get</text>
+        </g>
+<g class="ib-edge" data-focus="l1,l2">
+          <rect x="317.5" y="52.0" width="40" height="16" rx="8" fill="var(--card)" stroke="var(--border)" stroke-width="0.9" />
+          <text x="337.5" y="63.2" text-anchor="middle" font-size="9" font-weight="600" fill="var(--warning)">miss</text>
+        </g>
+<g class="ib-edge" data-focus="l2,db">
+          <rect x="495.5" y="52.0" width="40" height="16" rx="8" fill="var(--card)" stroke="var(--border)" stroke-width="0.9" />
+          <text x="515.5" y="63.2" text-anchor="middle" font-size="9" font-weight="600" fill="var(--warning)">miss</text>
+        </g>
+<g class="ib-edge" data-focus="client,l1">
+          <rect x="119.5" y="10.0" width="83" height="16" rx="8" fill="var(--card)" stroke="var(--border)" stroke-width="0.9" />
+          <text x="161.0" y="21.2" text-anchor="middle" font-size="9" font-weight="600" fill="var(--success)">hit · 0.4 ms</text>
+        </g>
+<g class="ib-edge" data-focus="db,fill">
+          <rect x="377.0" y="124.0" width="102" height="16" rx="8" fill="var(--card)" stroke="var(--border)" stroke-width="0.9" />
+          <text x="428.0" y="135.2" text-anchor="middle" font-size="9" font-weight="600" fill="var(--success)">backfill L1 + L2</text>
+        </g>
+      </svg>
+    </div>
+    <div class="ib-caption">Claim: a request only reaches Postgres after both tiers miss, and the answer is written back to both so the next read is local.</div>
+  </div>
+
+  <div class="ib-card ib-stepper">
+    <div class="ib-stepper-bar">
+      <div>
+        <div class="ib-title">Walk one cold read</div>
+        <div class="ib-note">Click a step or press Play; the diagram above follows along</div>
+      </div>
+      <div class="ib-stepper-btns">
+        <button type="button" class="ib-btn" data-act="prev">←</button>
+        <div class="ib-dots"><button type="button" class="ib-dot is-active" aria-label="Step 1">1</button><button type="button" class="ib-dot" aria-label="Step 2">2</button><button type="button" class="ib-dot" aria-label="Step 3">3</button><button type="button" class="ib-dot" aria-label="Step 4">4</button></div>
+        <button type="button" class="ib-btn" data-act="next">→</button>
+        <button type="button" class="ib-btn" data-act="play" aria-pressed="false">▶ Play</button>
+        <button type="button" class="ib-btn" data-act="reset">All</button>
+      </div>
+    </div>
+    <div class="ib-stage-box">
+      <div class="ib-stage-title"></div>
+      <div class="ib-stage-body"></div>
+    </div>
+    <div class="ib-stage-data" hidden data-title="Request arrives" data-stage-focus="client,l1">The handler asks <span class="ib-ref" data-focus="l1">L1</span> first. A hit returns in well under a millisecond and the walk ends here.</div>
+<div class="ib-stage-data" hidden data-title="L1 misses, L2 is asked" data-stage-focus="l1,l2">The key is absent or expired locally, so the same key is fetched from <span class="ib-ref" data-focus="l2">Redis</span> over the network.</div>
+<div class="ib-stage-data" hidden data-title="Both tiers miss" data-stage-focus="l2,db">Only now does the request reach <span class="ib-ref" data-focus="db">Postgres</span>. A single-flight lock keeps concurrent misses on the same key down to one query.</div>
+<div class="ib-stage-data" hidden data-title="Backfill both tiers" data-stage-focus="db,fill">The row is written to Redis and L1 with a jittered TTL, so the next reader stays on the fast path.</div>
+  </div>
+
+  <div class="ib-card">
+    <div class="ib-head">
+      <div class="ib-title">Cold read vs. warm read</div>
+      <div class="ib-note">Steps in execution order; GATE = guard, BREAK = slow or failure-prone hop</div>
+    </div>
+    <div class="ib-lanes" style="--ib-lane-cols:2"><div class="ib-lane">
+        <div class="ib-lane-head ib-tone-warn"><span>Cold read</span><span>5 steps</span></div>
+        <div class="ib-step" data-focus="l1">
+            <div class="ib-step-top">
+              <span class="ib-step-title">Look up L1</span>
+              <span class="ib-kind ib-kind-action">STEP</span>
+            </div>
+            <div class="ib-step-note">miss · ~0.1 ms</div>
+          </div><div class="ib-step-arrow">↓</div>
+<div class="ib-step" data-focus="l2">
+            <div class="ib-step-top">
+              <span class="ib-step-title">Look up Redis</span>
+              <span class="ib-kind ib-kind-action">STEP</span>
+            </div>
+            <div class="ib-step-note">miss · ~2 ms</div>
+          </div><div class="ib-step-arrow">↓</div>
+<div class="ib-step" data-focus="db">
+            <div class="ib-step-top">
+              <span class="ib-step-title">Take single-flight lock</span>
+              <span class="ib-kind ib-kind-gate">GATE</span>
+            </div>
+            <div class="ib-step-note">one query per key</div>
+          </div><div class="ib-step-arrow">↓</div>
+<div class="ib-step" data-focus="db">
+            <div class="ib-step-top">
+              <span class="ib-step-title">Query Postgres</span>
+              <span class="ib-kind ib-kind-break">BREAK</span>
+            </div>
+            <div class="ib-step-note">~38 ms at p99</div>
+          </div><div class="ib-step-arrow">↓</div>
+<div class="ib-step" data-focus="fill">
+            <div class="ib-step-top">
+              <span class="ib-step-title">Backfill both tiers</span>
+              <span class="ib-kind ib-kind-action">STEP</span>
+            </div>
+            <div class="ib-step-note">async, off the hot path</div>
+          </div>
+      </div>
+<div class="ib-lane">
+        <div class="ib-lane-head ib-tone-ok"><span>Warm read</span><span>3 steps</span></div>
+        <div class="ib-step" data-focus="l1">
+            <div class="ib-step-top">
+              <span class="ib-step-title">Look up L1</span>
+              <span class="ib-kind ib-kind-action">STEP</span>
+            </div>
+            <div class="ib-step-note">hit · ~0.4 ms</div>
+          </div><div class="ib-step-arrow">↓</div>
+<div class="ib-step" data-focus="client">
+            <div class="ib-step-top">
+              <span class="ib-step-title">Return to client</span>
+              <span class="ib-kind ib-kind-action">STEP</span>
+            </div>
+            <div class="ib-step-note">no network hop</div>
+          </div><div class="ib-step-arrow">↓</div>
+<div class="ib-step" data-focus="fill">
+            <div class="ib-step-top">
+              <span class="ib-step-title">Revalidate in background</span>
+              <span class="ib-kind ib-kind-gate">GATE</span>
+            </div>
+            <div class="ib-step-note">refresh at 80% of TTL</div>
+          </div>
+      </div></div>
+    <div class="ib-caption">The cold path costs two network hops and one lock; the warm path costs none of them.</div>
+  </div>
+
+  <div class="ib-card">
+    <div class="ib-head">
+      <div class="ib-title">p99 latency by path</div>
+      <div class="ib-note">Sample load test · same hardware, same key set</div>
+    </div>
+    <div class="ib-bars"><div class="ib-bar-row" data-focus="l1">
+        <div class="ib-bar-lbl" title="L1 hit">L1 hit</div>
+        <div class="ib-bar-track"><div class="ib-bar-fill ib-fill-ok" style="width:0.2%"></div></div>
+        <div class="ib-bar-num">0.4 ms</div>
+      </div>
+<div class="ib-bar-row" data-focus="l2">
+        <div class="ib-bar-lbl" title="L2 hit">L2 hit</div>
+        <div class="ib-bar-track"><div class="ib-bar-fill ib-fill-info" style="width:1.0%"></div></div>
+        <div class="ib-bar-num">2.1 ms</div>
+      </div>
+<div class="ib-bar-row" data-focus="db">
+        <div class="ib-bar-lbl" title="Cold read (locked)">Cold read (locked)</div>
+        <div class="ib-bar-track"><div class="ib-bar-fill ib-fill-warn" style="width:17.9%"></div></div>
+        <div class="ib-bar-num">38 ms</div>
+      </div>
+<div class="ib-bar-row" data-focus="db">
+        <div class="ib-bar-lbl" title="Stampede (no lock)">Stampede (no lock)</div>
+        <div class="ib-bar-track"><div class="ib-bar-fill ib-fill-danger" style="width:100.0%"></div></div>
+        <div class="ib-bar-num">212 ms</div>
+      </div></div>
+    <div class="ib-caption">A cold read is ~95x slower than an L1 hit, and a stampede without the lock is another ~5x worse.</div>
+  </div>
+
+  <details class="ib-fold">
+    <summary>Method and how to reproduce (expand)</summary>
+    <div class="ib-fold-body">
+    <div>All figures are illustrative sample data for this demo, not a benchmark of any real system. To collect equivalent numbers on your own service:</div>
+    <pre><code>redis-cli --latency-history -i 1
+psql -c "EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM items WHERE id = 42"
+for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080/items/42; done | sort -n | tail -3</code></pre>
+  </div>
+  </details>
+</div>
+<script>
+(() => {
+  const focusables = () => Array.from(document.querySelectorAll("[data-focus]"));
+  let pinnedKeys = null;
+
+  function parseKeys(val) {
+    return (val || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  function applyFocus(keys) {
+    const els = focusables();
+    if (!keys || keys.length === 0) {
+      els.forEach((el) => {
+        el.classList.remove("ib-lit", "ib-dim");
+      });
+      return;
+    }
+    const set = new Set(keys);
+    els.forEach((el) => {
+      const elKeys = parseKeys(el.getAttribute("data-focus"));
+      const match = elKeys.some((k) => set.has(k));
+      el.classList.toggle("ib-lit", match);
+      el.classList.toggle("ib-dim", !match);
+    });
+  }
+
+  // Hover & click cross-highlighting
+  focusables().forEach((el) => {
+    const keys = parseKeys(el.getAttribute("data-focus"));
+    if (!keys.length) return;
+    el.addEventListener("mouseenter", () => applyFocus(keys));
+    el.addEventListener("mouseleave", () => applyFocus(pinnedKeys));
+    el.addEventListener("click", () => {
+      const same = pinnedKeys && pinnedKeys.join(",") === keys.join(",");
+      pinnedKeys = same ? null : keys;
+      applyFocus(pinnedKeys);
+    });
+  });
+
+  // Stepper widgets
+  document.querySelectorAll(".ib-stepper").forEach((root) => {
+    const stages = Array.from(root.querySelectorAll(".ib-stage-data"));
+    if (!stages.length) return;
+    const titleEl = root.querySelector(".ib-stage-title");
+    const bodyEl = root.querySelector(".ib-stage-body");
+    const dots = Array.from(root.querySelectorAll(".ib-dot"));
+    const prevBtn = root.querySelector('[data-act="prev"]');
+    const nextBtn = root.querySelector('[data-act="next"]');
+    const playBtn = root.querySelector('[data-act="play"]');
+    const resetBtn = root.querySelector('[data-act="reset"]');
+
+    let idx = 0;
+    let timer = null;
+
+    function stopPlay() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      if (playBtn) {
+        playBtn.setAttribute("aria-pressed", "false");
+        playBtn.textContent = "▶ Play";
+      }
+    }
+
+    function show(nextIdx, syncFocus = true) {
+      idx = (nextIdx + stages.length) % stages.length;
+      const st = stages[idx];
+      if (titleEl) titleEl.textContent = `${idx + 1}/${stages.length} · ${st.dataset.title || ""}`;
+      if (bodyEl) bodyEl.innerHTML = st.innerHTML;
+      dots.forEach((d, i) => d.classList.toggle("is-active", i === idx));
+      if (syncFocus) {
+        const keys = parseKeys(st.dataset.stageFocus);
+        pinnedKeys = keys.length ? keys : null;
+        applyFocus(pinnedKeys);
+      }
+    }
+
+    dots.forEach((d, i) =>
+      d.addEventListener("click", () => {
+        stopPlay();
+        show(i, true);
+      })
+    );
+    if (prevBtn) prevBtn.addEventListener("click", () => { stopPlay(); show(idx - 1, true); });
+    if (nextBtn) nextBtn.addEventListener("click", () => { stopPlay(); show(idx + 1, true); });
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        stopPlay();
+        pinnedKeys = null;
+        applyFocus(null);
+        show(0, false);
+      });
+    }
+    if (playBtn) {
+      playBtn.addEventListener("click", () => {
+        if (timer) {
+          stopPlay();
+          return;
+        }
+        playBtn.setAttribute("aria-pressed", "true");
+        playBtn.textContent = "❚❚ Pause";
+        show(idx, true);
+        timer = setInterval(() => show(idx + 1, true), 2200);
+      });
+    }
+
+    // Initialize first stage text without dimming overview on initial render
+    show(0, false);
+  });
+})();
+</script>
+</body>
+</html>

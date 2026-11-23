@@ -1,0 +1,54 @@
+<ib-page title="Repo health audit: throughput vs. CI drag" lang="en">
+
+  <ib-kpis>
+    <ib-kpi label="Merged PRs / week" value="31" sub="up from 6 twelve weeks ago" tone="ok" focus="growth"></ib-kpi>
+    <ib-kpi label="Median PR age" value="2.4 d" sub="to first merge" tone="info" focus="review"></ib-kpi>
+    <ib-kpi label="CI wall time" value="14 min" sub="p50, main branch" tone="danger" focus="ci"></ib-kpi>
+    <ib-kpi label="Test coverage" value="78%" sub="lines, unit + integration" tone="neutral"></ib-kpi>
+  </ib-kpis>
+
+  <ib-trend title="Merged pull requests per week" note="Sample data · 12 weeks" unit="PRs" caption="Weekly throughput grew about five-fold in twelve weeks, with step changes at the v1.0 release and the CI migration.">
+    <ib-point label="Aug 04" value="6" />
+    <ib-point label="Aug 11" value="7" />
+    <ib-point label="Aug 18" value="9" />
+    <ib-point label="Aug 25" value="8" />
+    <ib-point label="Sep 01" value="14" mark="v1.0 release" tone="info" />
+    <ib-point label="Sep 08" value="19" />
+    <ib-point label="Sep 15" value="17" />
+    <ib-point label="Sep 22" value="21" />
+    <ib-point label="Sep 29" value="24" mark="CI migrated" tone="ok" />
+    <ib-point label="Oct 06" value="22" />
+    <ib-point label="Oct 13" value="28" />
+    <ib-point label="Oct 20" value="31" />
+  </ib-trend>
+
+  <ib-flow title="Why more throughput made reviews slower" note="Reinforcing loop · hover a node to isolate it" caption="Slow CI pushes authors to batch changes, batches are harder to review, and stale branches add rebases that re-trigger CI.">
+    <ib-node id="ci" col="1" row="1" sub="14 min p50" tone="danger" focus="ci">Slow CI</ib-node>
+    <ib-node id="batch" col="2" row="1" sub="avg 640 lines" tone="warn" focus="batch">Batched PRs</ib-node>
+    <ib-node id="review" col="3" row="1" sub="2.4 d median" tone="warn" focus="review">Review delay</ib-node>
+    <ib-node id="stale" col="4" row="1" sub="branches > 7 d" tone="warn" focus="stale">Stale branches</ib-node>
+    <ib-node id="cache" col="1" row="2" sub="dependency cache" tone="ok" focus="cache">Pipeline cache</ib-node>
+
+    <ib-edge from="ci" to="batch" label="forces" tone="warn" focus="ci,batch"></ib-edge>
+    <ib-edge from="batch" to="review" label="slows" tone="warn" focus="batch,review"></ib-edge>
+    <ib-edge from="review" to="stale" label="ages" tone="warn" focus="review,stale"></ib-edge>
+    <ib-edge from="stale" to="ci" label="forces rebase" tone="danger" dashed curve="top" focus="stale,ci"></ib-edge>
+    <ib-edge from="cache" to="ci" label="cuts 6 min" tone="ok" focus="cache,ci"></ib-edge>
+  </ib-flow>
+
+  <ib-bars title="Source size by module" note="Sample data · non-test sources" unit="KiB" caption="Two modules hold 71% of the code; they are also where most review comments land.">
+    <ib-bar label="src/core" value="412" tone="warn"></ib-bar>
+    <ib-bar label="src/api" value="268" tone="warn"></ib-bar>
+    <ib-bar label="src/cli" value="141"></ib-bar>
+    <ib-bar label="src/storage" value="97"></ib-bar>
+    <ib-bar label="src/utils" value="38"></ib-bar>
+  </ib-bars>
+
+  <ib-details summary="Scope, method and reproduce commands (expand)">
+    <div>Figures are illustrative sample data for this demo. Scope: default branch, merged pull requests only, 12 calendar weeks. To produce equivalent numbers for your own repository:</div>
+    <pre><code>git log --merges --since="12 weeks ago" --format=%ad --date=format:%G-W%V | sort | uniq -c
+find src -type f -name "*.ts" ! -name "*.test.ts" -exec du -k {} + | sort -rn | head
+gh run list --branch main --limit 50 --json durationMs</code></pre>
+  </ib-details>
+
+</ib-page>
