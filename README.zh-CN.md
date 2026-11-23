@@ -7,6 +7,8 @@
 
 [English](README.md) · [Skill](skills/inline-brief/SKILL.md) · [组件参考](skills/inline-brief/references/components.md) · [`html_render` 合同](skills/inline-brief/references/t3-contract.md)
 
+![inline-brief-skill：约 55 行语义化 DSL 编译为 T3 Code 原生主题交互图文](docs/images/hero-pipeline.png)
+
 ## 直接交给你的 Agent
 
 把下面这段贴进 T3 Code 对话（或任何能执行 shell 的 Agent 会话）：
@@ -29,6 +31,8 @@
 - **零依赖**：单个 Node >= 20 ES 模块，无需安装，无需联网，产物不含任何外部资源。
 
 ## 示例
+
+![同一份编译产物在暗色 728px、亮色 728px 与手机 390px 下的原生主题自适应](docs/images/themes-qa.png)
 
 | 页面 | 组件 | 源码 |
 | --- | --- | --- |
@@ -56,6 +60,8 @@ mkdir -p .agents/skills && cp -R inline-brief-skill/skills/inline-brief .agents/
 Claude Code 也可作为插件安装：`/plugin marketplace add jieyuexing/inline-brief-skill`，再 `/plugin install inline-brief-skill@inline-brief-skill`。仓库同时带有 [Agent Plugins 1.0](https://agent-plugins.org) 的 `plugin.json`。各 Agent 版本的 skill 路径可能变化，若未被发现请查阅对应文档。
 
 ## DSL 速览
+
+![7 类语义图元与 6 道编译期沙箱门禁总览](docs/images/components-gates.png)
 
 | 标签 | 用途 |
 | --- | --- |

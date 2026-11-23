@@ -6,6 +6,8 @@
 
 [中文说明](README.zh-CN.md) · [Skill](skills/inline-brief/SKILL.md) · [Component reference](skills/inline-brief/references/components.md) · [`html_render` contract](skills/inline-brief/references/t3-contract.md)
 
+![inline-brief-skill: 55-line semantic DSL compiled into an interactive, theme-native T3 Code visual](docs/images/hero-pipeline.png)
+
 ## Give this to your agent
 
 Paste this into a T3 Code thread (or any agent session with shell access):
@@ -28,6 +30,8 @@ Raw HTML and SVG written by an LLM for an inline preview tends to fail in the sa
 - **Zero dependencies.** One Node >= 20 ES module, no install step, no network access, no external assets in the output.
 
 ## Examples
+
+![Same compiled brief across Dark 728px, Light 728px, and Mobile 390px using T3 CSS variables](docs/images/themes-qa.png)
 
 | Page | Components | Source |
 | --- | --- | --- |
@@ -55,6 +59,8 @@ mkdir -p .agents/skills && cp -R inline-brief-skill/skills/inline-brief .agents/
 Claude Code can also install it as a plugin: `/plugin marketplace add jieyuexing/inline-brief-skill`, then `/plugin install inline-brief-skill@inline-brief-skill`. The repository ships an [Agent Plugins 1.0](https://agent-plugins.org) `plugin.json` as well. Skill paths vary by agent version; check your agent's documentation if the skill is not discovered.
 
 ## DSL at a glance
+
+![7 semantic <ib-*> primitives and 6 static build-time sandbox gates](docs/images/components-gates.png)
 
 ```html
 <ib-page title="Cache read path" lang="en">

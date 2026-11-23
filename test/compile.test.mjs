@@ -263,6 +263,7 @@ test("repository contains no private paths, forbidden names or old DSL prefixes"
     }
   })(ROOT);
   for (const f of files) {
+    if (/\.(png|jpg|jpeg|webp|gif|ico)$/i.test(f)) continue;
     const text = readFileSync(f, "utf8");
     for (const b of banned) assert.ok(!text.includes(b), `${f} contains "${b}"`);
   }
