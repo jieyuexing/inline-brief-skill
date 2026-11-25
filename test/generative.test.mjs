@@ -504,3 +504,61 @@ test("generative I2: hostile attribute and label text never changes page structu
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// I3: runtime on random pages. Contract: kit/runtime.js delegated mouseover /
+// mouseout / click handlers (hover previews, click pins, leaving restores the
+// pinned state) and per-instance stepper state.
+// ---------------------------------------------------------------------------
+
+const keysOf = (el) => (el.getAttribute("data-focus") || "").split(",").map((s) => s.trim()).filter(Boolean);
+const litIds = (page) => page.root.querySelectorAll("[data-focus]").map((e) => (e.classList.contains("ib-lit") ? "L" : e.classList.contains("ib-dim") ? "D" : "-")).join("");
+
+test("generative I3: hover previews a focus set, leaving restores the pinned state, and steppers never affect each other", async () => {
+  const salt = "i3-runtime";
+  const rng = makeRng(salt);
+  let multi = 0;
+  // At least 40 pages, and keep going (up to 300) until three of them have two or more steppers.
+  for (let i = 0; i < 40 || (multi < 3 && i < 300); i++) {
+    const { lines, meta } = genPage(rng, safeText(rng));
+    const src = lines.join("\n");
+    const res = compileSource(src);
+    assert.deepEqual(res.errors, [], failMessage(salt, i, "random page failed to compile", src));
+    const page = loadPage(res.html, vm);
+    const focusables = page.root.querySelectorAll("[data-focus]").filter((e) => keysOf(e).length);
+    for (let step = 0; step < 6 && focusables.length; step++) {
+      const el = rng.pick(focusables);
+      const before = litIds(page);
+      await page.hover(el);
+      const want = new Set(keysOf(el));
+      for (const f of page.root.querySelectorAll("[data-focus]")) {
+        const hit = keysOf(f).some((k) => want.has(k));
+        assert.equal(f.classList.contains("ib-lit"), hit, failMessage(salt, i, `hover: element lit state wrong (step ${step})`, src));
+      }
+      await page.leave(el);
+      assert.equal(litIds(page), before, failMessage(salt, i, `leave did not restore the pinned state (step ${step})`, src));
+      if (rng.bool(0.4) && !el.closest(".ib-stepper-btns, .ib-pick-actions, .ib-pick-filters, .ib-pick-bar-btns, .ib-pick-note-wrap, .ib-pick-zoom, .ib-pick-preview, .ib-pick-dialog, .ib-pick-fallback")) {
+        await page.click(el);
+        const pinned = litIds(page);
+        const other = rng.pick(focusables);
+        await page.hover(other);
+        await page.leave(other);
+        assert.equal(litIds(page), pinned, failMessage(salt, i, `click pin did not survive a hover (step ${step})`, src));
+      }
+    }
+    const steppers = page.root.querySelectorAll(".ib-stepper");
+    if (steppers.length < 2) continue;
+    multi += 1;
+    const titles = () => steppers.map((s) => s.querySelector(".ib-stage-title").textContent);
+    for (let s = 0; s < steppers.length; s++) {
+      const before = titles();
+      await page.click(steppers[s].querySelector('[data-act="next"]'));
+      const after = titles();
+      after.forEach((t, j) => {
+        if (j !== s) assert.equal(t, before[j], failMessage(salt, i, `next on stepper ${s} changed stepper ${j}`, src));
+      });
+      if (meta.steppers[s].length > 1) assert.notEqual(after[s], before[s], failMessage(salt, i, `next on stepper ${s} did not advance it`, src));
+    }
+  }
+  assert.ok(multi >= 3, "generator produced fewer than three pages with two steppers; widen it");
+});
