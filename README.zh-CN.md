@@ -1,6 +1,6 @@
 # inline-brief-skill
 
-**把证据变成能在 T3 Code 对话里原生内联渲染、自动跟随主题的交互式图文。** 这是一个面向 T3 Code `html_render` 管线的 Agent Skill，附带零依赖编译器：只需写约 60 行语义化 `<ib-*>` 标签，就能得到一个自包含 HTML，包含 KPI 条、折线趋势图、自动布线流程图、泳道对比和分步播放器，并且已通过沙箱合同静态校验。
+**把证据变成能在 T3 Code 对话里原生内联渲染、自动跟随主题的交互式图文与可视化选型页。** 这是一个面向 T3 Code `html_render` 管线的 Agent Skill，附带零依赖编译器：只需写约 60 行语义化 `<ib-*>` 标签，就能得到一个自包含 HTML，包含 KPI 条、折线趋势图、自动布线流程图、泳道对比、分步播放器，以及可直接点选并一键复制结果的可视化确认面板（`<ib-picker>`），并且已通过沙箱合同静态校验。
 
 > Unofficial community skill built for T3 Code's `html_render`. Not affiliated with or endorsed by T3 Tools Inc.
 > （非官方社区 Skill，与 T3 Tools Inc. 无隶属或背书关系。）
@@ -32,14 +32,17 @@
 
 ## 示例
 
+![使用 <ib-picker> 在线程内直接做可视化筛选确认：分组过滤、本地图片与 SVG 线框卡片、心仪/排除点选与一键复制结果](docs/images/visual-picker.png)
+
 ![同一份编译产物在暗色 728px、亮色 728px 与手机 390px 下的原生主题自适应](docs/images/themes-qa.png)
 
 | 页面 | 组件 | 源码 |
 | --- | --- | --- |
+| [`visual-direction-picker.html`](examples/visual-direction-picker.html) | 交互式 `<ib-picker>` 选型板（本地 PNG 编译期内联 + 主题原生 SVG 线框、分组筛选、★ 心仪 / ✕ 排除、一键复制挑选结果）＋联动柱图 | [`.src.html`](examples/visual-direction-picker.src.html) |
 | [`cache-read-path.html`](examples/cache-read-path.html) | KPI、带回退连线的流程图、与流程图联动的步进器、冷/热读泳道、延迟柱图 | [`.src.html`](examples/cache-read-path.src.html) |
 | [`repo-health-audit.html`](examples/repo-health-audit.html) | KPI、带里程碑标注的趋势图、因果闭环流程图、模块体量柱图、折叠的方法说明 | [`.src.html`](examples/repo-health-audit.src.html) |
 
-示例中的全部数字均为演示用样例数据。
+示例中的全部数字与插图均为原创演示样例。
 
 ## 安装
 
@@ -71,6 +74,7 @@ Claude Code 也可作为插件安装：`/plugin marketplace add jieyuexing/inlin
 | `<ib-flow>` / `<ib-node>` / `<ib-edge>` | 网格定位、自动布线的流程图，支持带标签连线与回退连线 |
 | `<ib-lanes>` / `<ib-lane>` / `<ib-step>` | 顺序泳道，步骤类型 `action`、`gate`、`break` |
 | `<ib-stepper>` / `<ib-stage>` | 分步播放器，按 `focus` 键联动高亮 |
+| `<ib-picker>` / `<ib-option>` / `<ib-preview>` | 可视化筛选确认面板（`triage` / `multi` / `single`），自动分组过滤、本地图片编译期内联、一键复制选择结果 |
 | `<ib-grid>`、`<ib-details>` | 双栏容器、折叠参考块 |
 
 `<ib-trend>` 示例：

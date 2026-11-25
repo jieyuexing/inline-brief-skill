@@ -91,11 +91,41 @@ Places nodes on a 1-indexed `(col, row)` grid and routes labeled SVG edges, so y
 
 Prev, Next, Play and All controls. Selecting a stage highlights every element whose `focus` matches the stage's keys and dims the rest.
 
-## 7. `<ib-grid>` - two-column wrapper
+## 7. `<ib-picker>` - interactive visual option picker & confirmation board
+
+Lets the user filter candidates by category, mark choices directly on screen, and copy a structured selection summary back into the chat thread (instead of typing option numbers manually).
+
+```html
+<ib-picker title="Shortlist 1–2 directions" note="Click cards, then copy summary" mode="triage" cols="2">
+  <ib-option id="01" title="Low-Poly 3D" group="Game Art" badge="CC0" tone="ok" sub="3-head stylized base" src="assets/opt-lowpoly.png" fit="cover" focus="opt1">
+    <ul>
+      <li><b>Strength:</b> Fast palette swaps.</li>
+      <li><b>Trade-off:</b> Needs custom modular hair/robe slots.</li>
+    </ul>
+  </ib-option>
+  <ib-option id="02" title="Editorial Bento" group="Interface" badge="Recommended" tone="info" sub="KPI strip + one main visual" focus="opt2">
+    <ib-preview>
+      <svg viewBox="0 0 320 200" width="320" height="200">...</svg>
+    </ib-preview>
+    <p>Scans in 5 seconds and stacks cleanly on 390px mobile.</p>
+  </ib-option>
+</ib-picker>
+```
+
+- Needs at least 2 `<ib-option>` children. Every `<ib-option>` requires a unique `id` (within the picker) and a `title`.
+- `mode` is `triage` (default: `★ Shortlist` / `✕ Skip`), `multi` (`✓ Select`), or `single` (`◉ Choose`). UI labels localize automatically when `<ib-page lang="zh...">` is set. `copy-label` overrides the Copy button text.
+- `cols` is `2` (default, collapses to 1 column at `<= 560px`) or `3`.
+- `group` (optional): when at least 2 distinct groups exist, the compiler auto-renders a category filter pill bar (`All (N)` + one pill per group).
+- Visual thumbnail (optional — omit both `src` and `<ib-preview>` for clean text/decision cards):
+  - `src`: either a `data:image/...` URI or a **relative local raster image path** inside the `.src.html` directory (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `<= 2 MiB`; no `..`, no absolute paths, no symlink escapes). `compile.mjs` inlines local files as `data:image/...;base64,...` so the output stays strictly offline. External `http(s)://` URLs are rejected by Gate 3. `fit` is `cover` (default), `contain`, or `pixel` (`image-rendering: pixelated; object-fit: contain`).
+  - `<ib-preview>...</ib-preview>`: inline theme-native `<svg viewBox="...">` or compact HTML preview. Cannot be combined with `src` on the same `<ib-option>`.
+- `badge` + `tone` (`neutral`, `info`, `ok`, `warn`, `danger`) adds a status pill (e.g. license, risk, recommendation). `focus` links the card to other charts/flows on the page.
+
+## 8. `<ib-grid>` - two-column wrapper
 
 `<ib-grid>` (or `cols="2"`) places its children in two columns on desktop and stacks them on mobile. Any other `cols` value renders a plain vertical stack.
 
-## 8. `<ib-details>` - folded reference block
+## 9. `<ib-details>` - folded reference block
 
 ```html
 <ib-details summary="Commands and scope">
@@ -105,6 +135,6 @@ Prev, Next, Play and All controls. Selecting a stage highlights every element wh
 
 Escape literal `<` as `&lt;` inside the body.
 
-## 9. Page-specific CSS
+## 10. Page-specific CSS
 
 An optional `<style>` block inside `<ib-page>` is appended to the base kit. It must use `var(--*)` tokens only (no hex, `rgb(`, `hsl(`), no `vh` units and no external URLs.

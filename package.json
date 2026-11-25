@@ -1,6 +1,6 @@
 {
   "name": "inline-brief-skill",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Agent skill that turns evidence into interactive, theme-native inline visuals for T3 Code's html_render. Zero dependencies. Unofficial community skill, not affiliated with T3 Tools Inc.",
   "license": "MIT",
   "type": "module",
@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "build:examples": "node skills/inline-brief/scripts/compile.mjs examples/cache-read-path.src.html examples/cache-read-path.html && node skills/inline-brief/scripts/compile.mjs examples/repo-health-audit.src.html examples/repo-health-audit.html"
+    "build:examples": "node skills/inline-brief/scripts/compile.mjs examples/cache-read-path.src.html examples/cache-read-path.html && node skills/inline-brief/scripts/compile.mjs examples/repo-health-audit.src.html examples/repo-health-audit.html && node skills/inline-brief/scripts/compile.mjs examples/visual-direction-picker.src.html examples/visual-direction-picker.html"
   },
   "engines": {
     "node": ">=20"

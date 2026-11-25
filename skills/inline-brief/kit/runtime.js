@@ -61,7 +61,7 @@
   });
 
   document.addEventListener("click", (e) => {
-    if (e.target && e.target.closest && e.target.closest(".ib-stepper-btns")) return;
+    if (e.target && e.target.closest && e.target.closest(".ib-stepper-btns, .ib-pick-actions, .ib-pick-filters, .ib-pick-bar-btns")) return;
     const el = e.target && e.target.closest ? e.target.closest("[data-focus]") : null;
     if (!el) return;
     const keys = parseKeys(el.getAttribute("data-focus"));
@@ -156,5 +156,161 @@
 
     // Initialize first stage text without dimming overview on initial render
     show(0, false);
+  });
+
+  // Interactive visual picker widgets (isolated per-instance state)
+  document.querySelectorAll(".ib-picker").forEach((root) => {
+    const mode = root.dataset.mode || "triage";
+    const cards = Array.from(root.querySelectorAll(".ib-opt"));
+    if (!cards.length) return;
+    const pills = Array.from(root.querySelectorAll(".ib-pick-pill"));
+    const sumEl = root.querySelector(".ib-pick-summary");
+    const copyBtn = root.querySelector("[data-pick-copy]");
+    const clearBtn = root.querySelector("[data-pick-clear]");
+    const state = new Map();
+
+    const emptyText = root.dataset.emptyText || "Click cards above to mark your choices.";
+    const likePrefix = root.dataset.likePrefix || "Shortlist: ";
+    const skipPrefix = root.dataset.skipPrefix || "Skip: ";
+    const selectPrefix = root.dataset.selectPrefix || "Selected: ";
+    const itemSep = root.dataset.itemSep || ", ";
+    const groupSep = root.dataset.groupSep || " | ";
+    const copyDefault = copyBtn ? copyBtn.textContent : "Copy selection";
+    const copiedLabel = root.dataset.copiedLabel || "Copied";
+    const copyFallbackLabel = root.dataset.copyFallbackLabel || "Select text to copy";
+
+    function formatSummary() {
+      const liked = [];
+      const skipped = [];
+      const selected = [];
+      for (const c of cards) {
+        const id = c.dataset.optId || "";
+        const title = c.dataset.optTitle || "";
+        const label = title ? `${id} ${title}` : id;
+        const st = state.get(id);
+        if (st === "like") liked.push(label);
+        else if (st === "skip") skipped.push(label);
+        else if (st === "select") selected.push(label);
+      }
+      const parts = [];
+      if (mode === "triage") {
+        if (liked.length) parts.push(`${likePrefix}${liked.join(itemSep)}`);
+        if (skipped.length) parts.push(`${skipPrefix}${skipped.join(itemSep)}`);
+      } else if (selected.length) {
+        parts.push(`${selectPrefix}${selected.join(itemSep)}`);
+      }
+      return parts.join(groupSep);
+    }
+
+    function syncCardDom(card) {
+      const id = card.dataset.optId || "";
+      const st = state.get(id) || null;
+      card.classList.toggle("is-liked", st === "like");
+      card.classList.toggle("is-skipped", st === "skip");
+      card.classList.toggle("is-selected", st === "select");
+      card.querySelectorAll("[data-pick-act]").forEach((btn) => {
+        btn.setAttribute("aria-pressed", btn.dataset.pickAct === st ? "true" : "false");
+      });
+    }
+
+    function renderSummary() {
+      const text = formatSummary();
+      if (sumEl) {
+        sumEl.textContent = text || emptyText;
+        sumEl.classList.toggle("is-empty", !text);
+      }
+      if (clearBtn) {
+        clearBtn.hidden = !text;
+      }
+    }
+
+    pills.forEach((pill) => {
+      pill.addEventListener("click", () => {
+        const grp = pill.dataset.pickFilter || "__all__";
+        pills.forEach((p) => {
+          const on = p === pill;
+          p.classList.toggle("is-active", on);
+          p.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        cards.forEach((c) => {
+          c.hidden = grp !== "__all__" && (c.dataset.optGroup || "") !== grp;
+        });
+      });
+    });
+
+    cards.forEach((card) => {
+      card.querySelectorAll("[data-pick-act]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = card.dataset.optId || "";
+          const act = btn.dataset.pickAct;
+          const prev = state.get(id) || null;
+          if (mode === "single") {
+            state.clear();
+            if (prev !== act) state.set(id, act);
+            cards.forEach(syncCardDom);
+          } else {
+            const next = prev === act ? null : act;
+            if (next) state.set(id, next);
+            else state.delete(id);
+            syncCardDom(card);
+          }
+          renderSummary();
+        });
+      });
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        state.clear();
+        cards.forEach(syncCardDom);
+        renderSummary();
+      });
+    }
+
+    if (copyBtn) {
+      let resetTimer = null;
+      const flashLabel = (label) => {
+        copyBtn.textContent = label;
+        if (resetTimer) clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+          copyBtn.textContent = copyDefault;
+          resetTimer = null;
+        }, 1400);
+      };
+      copyBtn.addEventListener("click", async () => {
+        const text = formatSummary();
+        if (!text) {
+          flashLabel(copyFallbackLabel);
+          return;
+        }
+        let copied = false;
+        if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          try {
+            await navigator.clipboard.writeText(text);
+            copied = true;
+          } catch {
+            copied = false;
+          }
+        }
+        if (!copied && typeof document.createElement === "function" && typeof document.execCommand === "function" && document.body) {
+          try {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            copied = Boolean(document.execCommand("copy"));
+            document.body.removeChild(ta);
+          } catch {
+            copied = false;
+          }
+        }
+        flashLabel(copied ? copiedLabel : copyFallbackLabel);
+      });
+    }
+
+    renderSummary();
   });
 })();

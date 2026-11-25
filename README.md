@@ -1,6 +1,6 @@
 # inline-brief-skill
 
-**Turn evidence into interactive, theme-native visuals that render inline in a T3 Code thread.** An agent skill plus a zero-dependency compiler for T3 Code's native `html_render` pipeline: write ~60 lines of semantic `<ib-*>` tags, get one self-contained HTML page with KPI strips, trend charts, auto-routed flow diagrams, swimlanes and a step-through player, already linted against the sandbox rules that otherwise break inline previews.
+**Turn evidence into interactive, theme-native visuals that render inline in a T3 Code thread.** An agent skill plus a zero-dependency compiler for T3 Code's native `html_render` pipeline: write ~60 lines of semantic `<ib-*>` tags, get one self-contained HTML page with KPI strips, trend charts, auto-routed flow diagrams, swimlanes, a step-through player, and interactive visual option pickers (`<ib-picker>`), already linted against the sandbox rules that otherwise break inline previews.
 
 > Unofficial community skill built for T3 Code's `html_render`. Not affiliated with or endorsed by T3 Tools Inc.
 
@@ -31,14 +31,17 @@ Raw HTML and SVG written by an LLM for an inline preview tends to fail in the sa
 
 ## Examples
 
+![Interactive visual confirmation with <ib-picker>: filterable image and wireframe cards with shortlist/skip buttons and 1-click copy summary](docs/images/visual-picker.png)
+
 ![Same compiled brief across Dark 728px, Light 728px, and Mobile 390px using T3 CSS variables](docs/images/themes-qa.png)
 
 | Page | Components | Source |
 | --- | --- | --- |
+| [`visual-direction-picker.html`](examples/visual-direction-picker.html) | Interactive `<ib-picker>` triage board (local PNG inlining + theme-native SVG wireframes, category filter pills, ★ Shortlist / ✕ Skip, 1-click copy summary) + linked effort bars | [`.src.html`](examples/visual-direction-picker.src.html) |
 | [`cache-read-path.html`](examples/cache-read-path.html) | KPIs, flow with back edges, stepper linked to the flow, Cold vs. Warm swimlanes, latency bars | [`.src.html`](examples/cache-read-path.src.html) |
 | [`repo-health-audit.html`](examples/repo-health-audit.html) | KPIs, trend chart with milestone marks, causal-loop flow, module-size bars, folded method | [`.src.html`](examples/repo-health-audit.src.html) |
 
-All figures in the examples are illustrative sample data.
+All figures and artwork in the examples are original illustrative sample data.
 
 ## Install
 
@@ -90,6 +93,7 @@ Claude Code can also install it as a plugin: `/plugin marketplace add jieyuexing
 | `<ib-flow>` / `<ib-node>` / `<ib-edge>` | grid-placed, auto-routed diagram with labeled and back edges |
 | `<ib-lanes>` / `<ib-lane>` / `<ib-step>` | sequential swimlanes with `action`, `gate`, `break` steps |
 | `<ib-stepper>` / `<ib-stage>` | step-through player that highlights elements by `focus` key |
+| `<ib-picker>` / `<ib-option>` / `<ib-preview>` | interactive visual confirmation board (`triage` / `multi` / `single`), auto group filters, safe local image inlining, 1-click copyable selection summary |
 | `<ib-grid>`, `<ib-details>` | two-column wrapper, folded reference block |
 
 Full attribute reference: [`components.md`](skills/inline-brief/references/components.md).

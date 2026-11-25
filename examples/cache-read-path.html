@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="generator" content="inline-brief 0.1.1" />
+<meta name="generator" content="inline-brief 0.2.0" />
 <title>Cache read path: where the milliseconds go</title>
 <style>
 * { box-sizing: border-box; }
@@ -500,9 +500,347 @@ details.ib-fold pre {
   color: var(--foreground);
 }
 
+/* Interactive visual picker */
+.ib-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ib-pick-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+
+.ib-pick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ib-pick-pill {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 99px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-family: var(--font-sans, sans-serif);
+  line-height: 1.25;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.ib-pick-pill:hover {
+  border-color: var(--ring, var(--info));
+}
+
+.ib-pick-pill.is-active {
+  background: var(--info);
+  border-color: var(--info);
+  color: var(--card);
+  font-weight: 600;
+}
+
+.ib-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--ib-pick-cols, 2), minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ib-opt {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.ib-opt[hidden] {
+  display: none;
+}
+
+.ib-opt[data-focus] {
+  cursor: pointer;
+}
+
+.ib-opt.ib-lit {
+  border-color: var(--info);
+}
+
+.ib-opt.is-liked,
+.ib-opt.is-selected {
+  border-color: var(--success);
+  box-shadow: 0 0 0 1px var(--success);
+}
+
+.ib-opt.is-skipped {
+  opacity: 0.46;
+  border-color: var(--destructive);
+}
+
+.ib-pick-media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  overflow: hidden;
+  background: var(--secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ib-pick-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ib-pick-media img.ib-fit-contain {
+  object-fit: contain;
+  padding: 6px;
+}
+
+.ib-pick-media img.ib-fit-pixel {
+  object-fit: contain;
+  image-rendering: pixelated;
+  padding: 8px;
+}
+
+.ib-pick-preview {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ib-pick-preview svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ib-pick-id {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.ib-pick-grp {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 10.5px;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+}
+
+.ib-pick-body {
+  padding: 11px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.ib-pick-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ib-pick-title-wrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ib-pick-id-inline {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--secondary);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.ib-pick-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.ib-pick-badge {
+  font-size: 10.5px;
+  font-family: var(--font-mono, monospace);
+  padding: 1px 7px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.ib-pick-badge.ib-badge-info { color: var(--info); border-color: var(--info); }
+.ib-pick-badge.ib-badge-ok { color: var(--success); border-color: var(--success); }
+.ib-pick-badge.ib-badge-warn { color: var(--warning); border-color: var(--warning); }
+.ib-pick-badge.ib-badge-danger { color: var(--destructive); border-color: var(--destructive); }
+
+.ib-pick-sub {
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.ib-pick-desc {
+  font-size: 11.5px;
+  line-height: 1.48;
+  color: var(--foreground);
+}
+
+.ib-pick-desc p {
+  margin: 0 0 4px;
+}
+
+.ib-pick-desc p:last-child {
+  margin-bottom: 0;
+}
+
+.ib-pick-desc ul {
+  margin: 0;
+  padding-left: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ib-pick-desc b,
+.ib-pick-desc strong {
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+
+.ib-pick-actions {
+  margin-top: auto;
+  padding-top: 6px;
+  display: flex;
+  gap: 6px;
+}
+
+.ib-pick-btn {
+  flex: 1;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--foreground);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-family: var(--font-sans, sans-serif);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.ib-pick-btn:hover {
+  border-color: var(--ring, var(--info));
+}
+
+.ib-opt.is-liked .ib-pick-btn-like,
+.ib-opt.is-selected .ib-pick-btn-select {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--card);
+  font-weight: 700;
+}
+
+.ib-opt.is-skipped .ib-pick-btn-skip {
+  background: var(--destructive);
+  border-color: var(--destructive);
+  color: var(--card);
+  font-weight: 700;
+}
+
+.ib-pick-bar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: 10px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 10px;
+}
+
+.ib-pick-summary {
+  flex: 1 1 260px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--foreground);
+  user-select: all;
+  word-break: break-word;
+}
+
+.ib-pick-summary.is-empty {
+  color: var(--muted-foreground);
+  user-select: text;
+}
+
+.ib-pick-bar-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ib-pick-copy {
+  appearance: none;
+  border: 1px solid var(--info);
+  background: var(--info);
+  color: var(--card);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 5px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: var(--font-sans, sans-serif);
+  cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.ib-pick-copy:hover {
+  opacity: 0.9;
+}
+
 @media (max-width: 560px) {
   .ib-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ib-grid-2, .ib-lanes { grid-template-columns: 1fr; }
+  .ib-grid-2, .ib-lanes, .ib-pick-grid { grid-template-columns: 1fr; }
   .ib-bar-row { grid-template-columns: minmax(112px, 140px) 1fr auto; }
   .ib-flow-svg { min-width: 540px; }
 }
@@ -786,7 +1124,7 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
   });
 
   document.addEventListener("click", (e) => {
-    if (e.target && e.target.closest && e.target.closest(".ib-stepper-btns")) return;
+    if (e.target && e.target.closest && e.target.closest(".ib-stepper-btns, .ib-pick-actions, .ib-pick-filters, .ib-pick-bar-btns")) return;
     const el = e.target && e.target.closest ? e.target.closest("[data-focus]") : null;
     if (!el) return;
     const keys = parseKeys(el.getAttribute("data-focus"));
@@ -881,6 +1219,162 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
 
     // Initialize first stage text without dimming overview on initial render
     show(0, false);
+  });
+
+  // Interactive visual picker widgets (isolated per-instance state)
+  document.querySelectorAll(".ib-picker").forEach((root) => {
+    const mode = root.dataset.mode || "triage";
+    const cards = Array.from(root.querySelectorAll(".ib-opt"));
+    if (!cards.length) return;
+    const pills = Array.from(root.querySelectorAll(".ib-pick-pill"));
+    const sumEl = root.querySelector(".ib-pick-summary");
+    const copyBtn = root.querySelector("[data-pick-copy]");
+    const clearBtn = root.querySelector("[data-pick-clear]");
+    const state = new Map();
+
+    const emptyText = root.dataset.emptyText || "Click cards above to mark your choices.";
+    const likePrefix = root.dataset.likePrefix || "Shortlist: ";
+    const skipPrefix = root.dataset.skipPrefix || "Skip: ";
+    const selectPrefix = root.dataset.selectPrefix || "Selected: ";
+    const itemSep = root.dataset.itemSep || ", ";
+    const groupSep = root.dataset.groupSep || " | ";
+    const copyDefault = copyBtn ? copyBtn.textContent : "Copy selection";
+    const copiedLabel = root.dataset.copiedLabel || "Copied";
+    const copyFallbackLabel = root.dataset.copyFallbackLabel || "Select text to copy";
+
+    function formatSummary() {
+      const liked = [];
+      const skipped = [];
+      const selected = [];
+      for (const c of cards) {
+        const id = c.dataset.optId || "";
+        const title = c.dataset.optTitle || "";
+        const label = title ? `${id} ${title}` : id;
+        const st = state.get(id);
+        if (st === "like") liked.push(label);
+        else if (st === "skip") skipped.push(label);
+        else if (st === "select") selected.push(label);
+      }
+      const parts = [];
+      if (mode === "triage") {
+        if (liked.length) parts.push(`${likePrefix}${liked.join(itemSep)}`);
+        if (skipped.length) parts.push(`${skipPrefix}${skipped.join(itemSep)}`);
+      } else if (selected.length) {
+        parts.push(`${selectPrefix}${selected.join(itemSep)}`);
+      }
+      return parts.join(groupSep);
+    }
+
+    function syncCardDom(card) {
+      const id = card.dataset.optId || "";
+      const st = state.get(id) || null;
+      card.classList.toggle("is-liked", st === "like");
+      card.classList.toggle("is-skipped", st === "skip");
+      card.classList.toggle("is-selected", st === "select");
+      card.querySelectorAll("[data-pick-act]").forEach((btn) => {
+        btn.setAttribute("aria-pressed", btn.dataset.pickAct === st ? "true" : "false");
+      });
+    }
+
+    function renderSummary() {
+      const text = formatSummary();
+      if (sumEl) {
+        sumEl.textContent = text || emptyText;
+        sumEl.classList.toggle("is-empty", !text);
+      }
+      if (clearBtn) {
+        clearBtn.hidden = !text;
+      }
+    }
+
+    pills.forEach((pill) => {
+      pill.addEventListener("click", () => {
+        const grp = pill.dataset.pickFilter || "__all__";
+        pills.forEach((p) => {
+          const on = p === pill;
+          p.classList.toggle("is-active", on);
+          p.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        cards.forEach((c) => {
+          c.hidden = grp !== "__all__" && (c.dataset.optGroup || "") !== grp;
+        });
+      });
+    });
+
+    cards.forEach((card) => {
+      card.querySelectorAll("[data-pick-act]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = card.dataset.optId || "";
+          const act = btn.dataset.pickAct;
+          const prev = state.get(id) || null;
+          if (mode === "single") {
+            state.clear();
+            if (prev !== act) state.set(id, act);
+            cards.forEach(syncCardDom);
+          } else {
+            const next = prev === act ? null : act;
+            if (next) state.set(id, next);
+            else state.delete(id);
+            syncCardDom(card);
+          }
+          renderSummary();
+        });
+      });
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        state.clear();
+        cards.forEach(syncCardDom);
+        renderSummary();
+      });
+    }
+
+    if (copyBtn) {
+      let resetTimer = null;
+      const flashLabel = (label) => {
+        copyBtn.textContent = label;
+        if (resetTimer) clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+          copyBtn.textContent = copyDefault;
+          resetTimer = null;
+        }, 1400);
+      };
+      copyBtn.addEventListener("click", async () => {
+        const text = formatSummary();
+        if (!text) {
+          flashLabel(copyFallbackLabel);
+          return;
+        }
+        let copied = false;
+        if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          try {
+            await navigator.clipboard.writeText(text);
+            copied = true;
+          } catch {
+            copied = false;
+          }
+        }
+        if (!copied && typeof document.createElement === "function" && typeof document.execCommand === "function" && document.body) {
+          try {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            copied = Boolean(document.execCommand("copy"));
+            document.body.removeChild(ta);
+          } catch {
+            copied = false;
+          }
+        }
+        flashLabel(copied ? copiedLabel : copyFallbackLabel);
+      });
+    }
+
+    renderSummary();
   });
 })();
 </script>

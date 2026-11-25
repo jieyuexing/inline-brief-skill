@@ -1,0 +1,97 @@
+<ib-page title="Visual direction picker: shortlist a character & UI base" lang="en">
+
+  <ib-kpis>
+    <ib-kpi label="Candidates" value="4" sub="2 raster + 2 SVG wireframes" tone="info"></ib-kpi>
+    <ib-kpi label="Groups" value="2" sub="Game Art & Interface" tone="neutral"></ib-kpi>
+    <ib-kpi label="Selection mode" value="Triage" sub="Shortlist / Skip + Copy" tone="ok"></ib-kpi>
+    <ib-kpi label="External URLs" value="0" sub="Local assets inlined at build" tone="ok"></ib-kpi>
+  </ib-kpis>
+
+  <ib-picker title="Shortlist 1–2 directions to refine in the next round" note="Filter by group, mark cards, then copy the summary bar back to the thread" mode="triage" cols="2" caption="Hover a card to highlight its production effort bar below. All samples are original illustrative assets.">
+    <ib-option id="01" title="Stylized Low-Poly 3D" group="Game Art" badge="CC0 · GLTF" tone="ok" sub="3-head faceted silhouette + shared palette atlas" src="assets/opt-lowpoly.png" fit="cover" focus="lowpoly">
+      <ul>
+        <li><b>Strength:</b> Instant indie polish; one palette swap produces dozens of NPCs.</li>
+        <li><b>Trade-off:</b> Custom robes or hair require modular 3D mesh slots.</li>
+      </ul>
+    </ib-option>
+
+    <ib-option id="02" title="16-bit Pixel Martial" group="Game Art" badge="CC0 · Sprite" tone="info" sub="Crisp 80x50 nearest-neighbor silhouette" src="assets/opt-pixel.png" fit="pixel" focus="pixel">
+      <ul>
+        <li><b>Strength:</b> Bold side-scrolling readability and high animation personality.</li>
+        <li><b>Trade-off:</b> Per-frame hand painting scales slowly across armor variants.</li>
+      </ul>
+    </ib-option>
+
+    <ib-option id="03" title="Editorial Bento HUD" group="Interface" badge="Recommended" tone="ok" sub="KPI strip + one primary visual canvas" focus="bento">
+      <ib-preview>
+        <svg viewBox="0 0 320 200" width="320" height="200" role="img" aria-label="Editorial Bento HUD wireframe">
+          <rect x="14" y="14" width="292" height="172" rx="10" fill="var(--card)" stroke="var(--border)" stroke-width="1.5" />
+          <rect x="26" y="26" width="84" height="36" rx="6" fill="var(--secondary)" stroke="var(--info)" stroke-width="1.3" />
+          <rect x="118" y="26" width="84" height="36" rx="6" fill="var(--secondary)" stroke="var(--border)" stroke-width="1.2" />
+          <rect x="210" y="26" width="84" height="36" rx="6" fill="var(--secondary)" stroke="var(--success)" stroke-width="1.3" />
+          <rect x="34" y="34" width="34" height="5" rx="2.5" fill="var(--muted-foreground)" />
+          <rect x="34" y="44" width="48" height="10" rx="3" fill="var(--info)" />
+          <rect x="126" y="34" width="40" height="5" rx="2.5" fill="var(--muted-foreground)" />
+          <rect x="126" y="44" width="42" height="10" rx="3" fill="var(--foreground)" />
+          <rect x="218" y="34" width="38" height="5" rx="2.5" fill="var(--muted-foreground)" />
+          <rect x="218" y="44" width="46" height="10" rx="3" fill="var(--success)" />
+          <rect x="26" y="72" width="176" height="102" rx="7" fill="var(--secondary)" stroke="var(--border)" stroke-width="1.2" />
+          <polyline points="40,148 76,134 110,138 148,108 188,92" fill="none" stroke="var(--chart-1)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="148" cy="108" r="3.5" fill="var(--info)" />
+          <circle cx="188" cy="92" r="3.5" fill="var(--success)" />
+          <rect x="210" y="72" width="84" height="48" rx="7" fill="var(--secondary)" stroke="var(--border)" stroke-width="1.2" />
+          <rect x="220" y="84" width="60" height="7" rx="3.5" fill="var(--chart-1)" />
+          <rect x="220" y="98" width="44" height="7" rx="3.5" fill="var(--warning)" />
+          <rect x="210" y="126" width="84" height="48" rx="7" fill="var(--secondary)" stroke="var(--border)" stroke-width="1.2" />
+          <rect x="220" y="138" width="52" height="6" rx="3" fill="var(--muted-foreground)" />
+          <rect x="220" y="150" width="64" height="6" rx="3" fill="var(--border)" />
+        </svg>
+      </ib-preview>
+      <ul>
+        <li><b>Strength:</b> Answers the key metric in 5 seconds; stacks cleanly on mobile.</li>
+        <li><b>Trade-off:</b> Needs tight copywriting so cards stay scannable.</li>
+      </ul>
+    </ib-option>
+
+    <ib-option id="04" title="Compact Tactical Strip" group="Interface" badge="High Density" tone="warn" sub="Split inspector + live status console" focus="tactical">
+      <ib-preview>
+        <svg viewBox="0 0 320 200" width="320" height="200" role="img" aria-label="Compact Tactical Strip wireframe">
+          <rect x="14" y="14" width="292" height="172" rx="10" fill="var(--card)" stroke="var(--border)" stroke-width="1.5" />
+          <rect x="26" y="26" width="86" height="148" rx="6" fill="var(--secondary)" stroke="var(--border)" stroke-width="1.2" />
+          <rect x="34" y="36" width="70" height="14" rx="4" fill="var(--info)" />
+          <rect x="34" y="58" width="62" height="10" rx="3" fill="var(--border)" />
+          <rect x="34" y="76" width="66" height="10" rx="3" fill="var(--border)" />
+          <rect x="34" y="94" width="54" height="10" rx="3" fill="var(--border)" />
+          <rect x="34" y="112" width="68" height="10" rx="3" fill="var(--border)" />
+          <rect x="120" y="26" width="174" height="86" rx="6" fill="var(--secondary)" stroke="var(--border)" stroke-width="1.2" />
+          <rect x="132" y="40" width="44" height="24" rx="4" fill="var(--card)" stroke="var(--info)" stroke-width="1.3" />
+          <rect x="190" y="40" width="44" height="24" rx="4" fill="var(--card)" stroke="var(--warning)" stroke-width="1.3" />
+          <rect x="248" y="40" width="34" height="24" rx="4" fill="var(--card)" stroke="var(--success)" stroke-width="1.3" />
+          <line x1="176" y1="52" x2="190" y2="52" stroke="var(--muted-foreground)" stroke-width="1.5" />
+          <line x1="234" y1="52" x2="248" y2="52" stroke="var(--muted-foreground)" stroke-width="1.5" />
+          <rect x="132" y="78" width="150" height="20" rx="4" fill="var(--card)" stroke="var(--border)" stroke-width="1" />
+          <rect x="120" y="120" width="174" height="54" rx="6" fill="var(--secondary)" stroke="var(--warning)" stroke-width="1.2" />
+          <rect x="132" y="132" width="110" height="7" rx="3" fill="var(--warning)" />
+          <rect x="132" y="146" width="144" height="6" rx="3" fill="var(--muted-foreground)" />
+          <rect x="132" y="158" width="96" height="6" rx="3" fill="var(--border)" />
+        </svg>
+      </ib-preview>
+      <ul>
+        <li><b>Strength:</b> Fits deep drill-downs, logs, and filters without leaving the view.</li>
+        <li><b>Trade-off:</b> Harder to scan on 390px screens without folding the sidebar.</li>
+      </ul>
+    </ib-option>
+  </ib-picker>
+
+  <ib-bars title="Estimated setup effort for the first playable / usable milestone" note="Illustrative comparison · linked to cards above" unit="days" max="10" caption="Inline SVG wireframes and palette-atlas 3D rigs reach a reusable base fastest; hand-drawn pixel armor layers cost the most per variant.">
+    <ib-bar label="01 Low-Poly 3D" value="4" tone="ok" focus="lowpoly"></ib-bar>
+    <ib-bar label="02 16-bit Pixel" value="8" tone="warn" focus="pixel"></ib-bar>
+    <ib-bar label="03 Editorial Bento" value="2" tone="ok" focus="bento"></ib-bar>
+    <ib-bar label="04 Tactical Strip" value="5" tone="info" focus="tactical"></ib-bar>
+  </ib-bars>
+
+  <ib-details summary="How local image inlining & selection copy work (expand)">
+    <div>Cards <code>01</code> and <code>02</code> reference local PNG files (<code>assets/opt-lowpoly.png</code> and <code>assets/opt-pixel.png</code>). During <code>compile.mjs</code>, local raster images inside the source directory are validated (relative path only, no <code>..</code>, &lt;= 2 MiB) and inlined as <code>data:image/...;base64,...</code> so the compiled page makes zero network requests. Cards <code>03</code> and <code>04</code> use <code>&lt;ib-preview&gt;</code> with theme-native SVG tokens that automatically follow Dark and Light themes.</div>
+  </ib-details>
+
+</ib-page>

@@ -11,14 +11,14 @@ This skill targets T3 Code's inline sandboxed iframe (`html_preview` + `html_ren
 - **No outer shell.** Leave `html`, `body` and the outermost wrapper transparent: no background, no outer card border, no banner title, no horizontal page padding. T3 draws the frame on the thread surface and injects an overridable `8px` `html` gutter (`kit/base.css` sets `html, body { padding: 0 }` so component layouts align cleanly).
 - **Height follows content.** Never use `vh`, `dvh`, `svh`/`lvh` in CSS (`<style>` or `style=`) or `height: 100%` on `html` or `body`; they cause iframe resize loops or rejection. `html_render` takes a `height` from `80` to `2000` CSS px (mobile scrolls beyond that height). Give charts and SVGs a `viewBox` aspect ratio or an explicit pixel height.
 - **Remote URLs on the host.** T3 Code's `html_render` host allows remote URLs to load as-is, while `html_preview` blocks hostnames that resolve to private, reserved, or fake-IP addresses.
-- **Read-only iframe.** Inline scripts run for local UI state (steppers, hover cross-highlight, collapsible details) but cannot call back into the agent or persist storage across reloads.
+- **Read-only iframe.** Inline scripts run for local UI state (steppers, visual option pickers with clipboard summary copy, hover cross-highlight, collapsible details) but cannot call back into the agent or persist storage across reloads.
 
 ## Skill-enforced policy (`inline-brief`)
 
 To keep every compiled brief strictly self-contained and reliable offline or behind proxies (where remote fonts, CDN scripts, or images stall on fake-IP DNS), `inline-brief` enforces a **zero external requests** policy beyond the host minimum:
 
 - **Zero external URLs.** Forbids `http(s)://` and protocol-relative `//` in `src`, `href`, `srcset`, `poster`, `data`, `action`, `formaction`, `xlink:href` (quoted or unquoted), CSS `@import` and `url()` (`<style>` and inline `style=`), embedded `<iframe>`/`<object>`/`<embed>`, and `<script>` network calls (`fetch(`, `XMLHttpRequest`, `import(`, or external URL strings).
-- **Allowed local URIs.** `data:` URIs and page-local `#id` fragment anchors are allowed.
+- **Allowed local URIs & compile-time image inlining.** `data:` URIs and page-local `#id` fragment anchors are allowed. `<ib-option src="assets/...">` also accepts relative raster image paths (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `<= 2 MiB`) strictly inside the `.src.html` directory (no `..`, no absolute paths, no symlink escapes), which `compile.mjs` inlines as `data:image/...;base64,...` into the output HTML.
 
 ## Theme tokens (mandatory)
 

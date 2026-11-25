@@ -6,15 +6,15 @@
  * Usage:
  *   node scripts/compile.mjs <input.src.html> [output.html] [--check]
  */
-import { readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, realpathSync, statSync } from "node:fs";
+import { dirname, extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KIT_DIR = resolve(__dirname, "../kit");
 
 // Single version source for every install path (copied skill directories ship without package.json).
-export const VERSION = "0.1.1";
+export const VERSION = "0.2.0";
 
 const TONE_STROKE = {
   neutral: "var(--border)",
@@ -43,6 +43,17 @@ const TONE_EDGE = {
 const VALID_TONES = new Set(["neutral", "info", "ok", "warn", "danger"]);
 const VALID_KINDS = new Set(["action", "gate", "break"]);
 const VALID_CURVES = new Set(["auto", "top", "bottom"]);
+const VALID_PICK_MODES = new Set(["triage", "multi", "single"]);
+const VALID_PICK_FITS = new Set(["cover", "contain", "pixel"]);
+const VALID_PICK_COLS = new Set(["2", "3"]);
+const LOCAL_IMAGE_MIMES = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+};
+const MAX_LOCAL_IMAGE_BYTES = 2 * 1024 * 1024;
 
 // Standard CSS Color 4 named colors (excluding allowed keywords like transparent / currentColor).
 const NAMED_COLORS = new Set([
@@ -733,6 +744,271 @@ function renderDetails(attrs, body) {
   </details>`;
 }
 
+function resolvePickerImageSrc(rawSrc, line, ctx) {
+  const val = String(rawSrc || "").trim();
+  if (!val) return "";
+  // External URLs are already reported by Gate 3.
+  if (isExternalUrl(val)) return "";
+  if (/^data:/i.test(val)) {
+    if (!/^data:image\/[a-z0-9.+-]+(?:;charset=[^;,]+)?(?:;base64)?,/i.test(val)) {
+      ctx.errors.push(`line ${line} <ib-option>: src data URI must be an image (data:image/...)`);
+      return "";
+    }
+    return val;
+  }
+  if (!ctx.baseDir) {
+    ctx.errors.push(`line ${line} <ib-option>: relative src="${val}" requires a file baseDir (pass a file path or use a data:image/... URI)`);
+    return "";
+  }
+  if (val.startsWith("/") || val.startsWith("\\") || /^[a-zA-Z]:/.test(val)) {
+    ctx.errors.push(`line ${line} <ib-option>: src="${val}" must be a relative path inside the source directory (no absolute paths)`);
+    return "";
+  }
+  const normalizedParts = val.replace(/\\/g, "/").split("/");
+  if (normalizedParts.some((p) => p === "..")) {
+    ctx.errors.push(`line ${line} <ib-option>: src="${val}" cannot traverse above the source directory (".." forbidden)`);
+    return "";
+  }
+  const ext = extname(val).toLowerCase();
+  const mime = LOCAL_IMAGE_MIMES[ext];
+  if (!mime) {
+    ctx.errors.push(`line ${line} <ib-option>: unsupported local image extension "${ext || "(none)"}" in src="${val}" (allowed: .png, .jpg, .jpeg, .webp, .gif; for SVG use <ib-preview>)`);
+    return "";
+  }
+  let baseReal;
+  let fileReal;
+  try {
+    baseReal = realpathSync(ctx.baseDir);
+    fileReal = realpathSync(resolve(baseReal, val));
+  } catch {
+    ctx.errors.push(`line ${line} <ib-option>: local image "${val}" not found relative to source directory`);
+    return "";
+  }
+  const prefix = baseReal.endsWith(sep) ? baseReal : baseReal + sep;
+  if (!fileReal.startsWith(prefix)) {
+    ctx.errors.push(`line ${line} <ib-option>: local image "${val}" resolves outside the source directory`);
+    return "";
+  }
+  let st;
+  try {
+    st = statSync(fileReal);
+  } catch {
+    ctx.errors.push(`line ${line} <ib-option>: cannot stat local image "${val}"`);
+    return "";
+  }
+  if (!st.isFile()) {
+    ctx.errors.push(`line ${line} <ib-option>: src="${val}" is not a regular file`);
+    return "";
+  }
+  if (st.size > MAX_LOCAL_IMAGE_BYTES) {
+    ctx.errors.push(`line ${line} <ib-option>: local image "${val}" is ${(st.size / (1024 * 1024)).toFixed(2)} MiB (max 2 MiB; resize or compress before inlining)`);
+    return "";
+  }
+  const b64 = readFileSync(fileReal).toString("base64");
+  return `data:${mime};base64,${b64}`;
+}
+
+function renderPicker(attrs, body, offset, src, ctx) {
+  const line = lineAt(src, offset);
+  let mode = attrs.mode === undefined ? "triage" : attrs.mode;
+  if (!VALID_PICK_MODES.has(mode)) {
+    ctx.errors.push(`line ${line} <ib-picker>: unknown mode="${mode}" (expected triage, multi, single)`);
+    mode = "triage";
+  }
+  let cols = attrs.cols === undefined ? "2" : String(attrs.cols);
+  if (!VALID_PICK_COLS.has(cols)) {
+    ctx.errors.push(`line ${line} <ib-picker>: unsupported cols="${cols}" (expected 2 or 3)`);
+    cols = "2";
+  }
+
+  const options = parseChildTags(body, "ib-option", offset, src);
+  if (options.length < 2) {
+    ctx.errors.push(`line ${line} <ib-picker>: needs at least 2 <ib-option> (found ${options.length})`);
+    return "";
+  }
+  ctx.stats.figures += 1;
+  ctx.stats.interactive += 1;
+
+  const isZh = /^zh\b/i.test(ctx.lang || "");
+  const ui = isZh
+    ? {
+        all: "全部",
+        like: "★ 心仪",
+        skip: "✕ 排除",
+        select: mode === "single" ? "◉ 选择" : "✓ 选中",
+        clear: "清空",
+        copy: attrs["copy-label"] || "复制选择",
+        copied: "已复制",
+        fallback: "请直接复制左侧文字",
+        empty:
+          mode === "triage"
+            ? "尚未标记：点卡片上的「★ 心仪 / ✕ 排除」，或直接报编号。"
+            : "尚未选择：点卡片上的按钮标记选项，或直接报编号。",
+        likePrefix: "心仪：",
+        skipPrefix: "排除：",
+        selectPrefix: "已选：",
+        itemSep: "、",
+        groupSep: " ｜ ",
+      }
+    : {
+        all: "All",
+        like: "★ Shortlist",
+        skip: "✕ Skip",
+        select: mode === "single" ? "◉ Choose" : "✓ Select",
+        clear: "Clear",
+        copy: attrs["copy-label"] || "Copy selection",
+        copied: "Copied",
+        fallback: "Select text to copy",
+        empty:
+          mode === "triage"
+            ? "No selection yet: mark cards with Shortlist / Skip, or reply with option IDs."
+            : "No selection yet: click cards to pick options, or reply with option IDs.",
+        likePrefix: "Shortlist: ",
+        skipPrefix: "Skip: ",
+        selectPrefix: "Selected: ",
+        itemSep: ", ",
+        groupSep: " | ",
+      };
+
+  const seenIds = new Set();
+  const groupCounts = new Map();
+  const parsed = options.map((opt) => {
+    const id = (opt.attrs.id || "").trim();
+    const title = (opt.attrs.title || "").trim();
+    const group = (opt.attrs.group || "").trim();
+    const tone = validateTone(opt.attrs.tone, opt.line, "ib-option", ctx);
+    let fit = opt.attrs.fit === undefined ? "cover" : opt.attrs.fit;
+    if (!VALID_PICK_FITS.has(fit)) {
+      ctx.errors.push(`line ${opt.line} <ib-option>: unknown fit="${fit}" (expected cover, contain, pixel)`);
+      fit = "cover";
+    }
+    if (!id) {
+      ctx.errors.push(`line ${opt.line} <ib-option>: missing required id attribute`);
+    } else if (seenIds.has(id)) {
+      ctx.errors.push(`line ${opt.line} <ib-option id="${id}">: duplicate option id in <ib-picker>`);
+    } else {
+      seenIds.add(id);
+    }
+    if (!title) {
+      ctx.errors.push(`line ${opt.line} <ib-option${id ? ` id="${id}"` : ""}>: missing required title attribute`);
+    }
+    if (group) {
+      groupCounts.set(group, (groupCounts.get(group) || 0) + 1);
+    }
+
+    const previewRe = new RegExp(`<ib-preview\\b${ATTR_SRC}>([\\s\\S]*?)<\\/ib-preview>`, "g");
+    const previews = [];
+    const descHtml = opt.inner
+      .replace(previewRe, (_, _rawAttrs, previewBody) => {
+        previews.push(previewBody.trim());
+        return "";
+      })
+      .trim();
+
+    if (previews.length > 1) {
+      ctx.errors.push(`line ${opt.line} <ib-option${id ? ` id="${id}"` : ""}>: at most one <ib-preview> is allowed per option`);
+    }
+    if (opt.attrs.src && previews.length > 0) {
+      ctx.errors.push(`line ${opt.line} <ib-option${id ? ` id="${id}"` : ""}>: specify either src or <ib-preview>, not both`);
+    }
+
+    const resolvedSrc = opt.attrs.src ? resolvePickerImageSrc(opt.attrs.src, opt.line, ctx) : "";
+    return {
+      ...opt,
+      id,
+      title,
+      group,
+      tone,
+      fit,
+      resolvedSrc,
+      previewHtml: previews[0] || "",
+      descHtml,
+    };
+  });
+
+  const filterBar =
+    groupCounts.size >= 2
+      ? `<div class="ib-pick-filters" role="group" aria-label="Filter options">
+        <button type="button" class="ib-pick-pill is-active" data-pick-filter="__all__" aria-pressed="true">${escHtml(ui.all)} (${parsed.length})</button>
+        ${Array.from(groupCounts.entries())
+          .map(
+            ([grp, count]) =>
+              `<button type="button" class="ib-pick-pill" data-pick-filter="${escHtml(grp)}" aria-pressed="false">${escHtml(grp)} (${count})</button>`
+          )
+          .join("\n        ")}
+      </div>`
+      : "";
+
+  const headerHtml =
+    attrs.title || attrs.note
+      ? `<div class="ib-pick-top">
+        ${attrs.title ? `<div class="ib-title">${escHtml(attrs.title)}</div>` : ""}
+        ${attrs.note ? `<div class="ib-note">${escHtml(attrs.note)}</div>` : ""}
+      </div>`
+      : "";
+
+  const cardsHtml = parsed
+    .map((o) => {
+      const hasMedia = Boolean(o.resolvedSrc || o.previewHtml);
+      const fitCls = o.fit === "pixel" ? " ib-fit-pixel" : o.fit === "contain" ? " ib-fit-contain" : "";
+      const mediaHtml = hasMedia
+        ? `<div class="ib-pick-media">
+            ${
+              o.resolvedSrc
+                ? `<img class="${fitCls.trim()}" src="${escHtml(o.resolvedSrc)}" alt="${escHtml(o.attrs.alt || o.title)}" />`
+                : `<div class="ib-pick-preview">${o.previewHtml}</div>`
+            }
+            <span class="ib-pick-id">${escHtml(o.id)}</span>
+            ${o.group ? `<span class="ib-pick-grp">${escHtml(o.group)}</span>` : ""}
+          </div>`
+        : "";
+
+      const badgeCls = o.tone !== "neutral" ? ` ib-badge-${escHtml(o.tone)}` : "";
+      const badgeHtml = o.attrs.badge ? `<span class="ib-pick-badge${badgeCls}">${escHtml(o.attrs.badge)}</span>` : "";
+      const inlineIdHtml = !hasMedia ? `<span class="ib-pick-id-inline">${escHtml(o.id)}</span>` : "";
+      const subHtml = o.attrs.sub ? `<div class="ib-pick-sub">${escHtml(o.attrs.sub)}</div>` : "";
+      const descHtml = o.descHtml ? `<div class="ib-pick-desc">${o.descHtml}</div>` : "";
+      const actionsHtml =
+        mode === "triage"
+          ? `<button type="button" class="ib-pick-btn ib-pick-btn-like" data-pick-act="like" aria-pressed="false">${escHtml(ui.like)}</button>
+            <button type="button" class="ib-pick-btn ib-pick-btn-skip" data-pick-act="skip" aria-pressed="false">${escHtml(ui.skip)}</button>`
+          : `<button type="button" class="ib-pick-btn ib-pick-btn-select" data-pick-act="select" aria-pressed="false">${escHtml(ui.select)}</button>`;
+
+      return `<article class="ib-opt" data-opt-id="${escHtml(o.id)}" data-opt-title="${escHtml(o.title)}" data-opt-group="${escHtml(o.group)}"${focusAttr(o.attrs.focus)}>
+        ${mediaHtml}
+        <div class="ib-pick-body">
+          <div class="ib-pick-head">
+            <div class="ib-pick-title-wrap">${inlineIdHtml}<span class="ib-pick-title">${escHtml(o.title)}</span></div>
+            ${badgeHtml}
+          </div>
+          ${subHtml}
+          ${descHtml}
+          <div class="ib-pick-actions">
+            ${actionsHtml}
+          </div>
+        </div>
+      </article>`;
+    })
+    .join("\n");
+
+  const capHtml = attrs.caption ? `<div class="ib-note">${escHtml(attrs.caption)}</div>` : "";
+  return `<section class="ib-picker" data-mode="${escHtml(mode)}" data-empty-text="${escHtml(ui.empty)}" data-like-prefix="${escHtml(ui.likePrefix)}" data-skip-prefix="${escHtml(ui.skipPrefix)}" data-select-prefix="${escHtml(ui.selectPrefix)}" data-item-sep="${escHtml(ui.itemSep)}" data-group-sep="${escHtml(ui.groupSep)}" data-copied-label="${escHtml(ui.copied)}" data-copy-fallback-label="${escHtml(ui.fallback)}">
+    ${headerHtml}
+    ${filterBar}
+    <div class="ib-pick-grid" style="--ib-pick-cols:${cols}">
+      ${cardsHtml}
+    </div>
+    <div class="ib-pick-bar">
+      <div class="ib-pick-summary is-empty">${escHtml(ui.empty)}</div>
+      <div class="ib-pick-bar-btns">
+        <button type="button" class="ib-btn" data-pick-clear hidden>${escHtml(ui.clear)}</button>
+        <button type="button" class="ib-pick-copy" data-pick-copy>${escHtml(ui.copy)}</button>
+      </div>
+    </div>
+    ${capHtml}
+  </section>`;
+}
+
 function stripCssComments(css) {
   let out = "";
   let inStr = null;
@@ -1182,6 +1458,7 @@ function validateStrictContainers(inner, innerOffset, src, ctx) {
     ["ib-flow", ["ib-node", "ib-edge"]],
     ["ib-lanes", ["ib-lane"]],
     ["ib-stepper", ["ib-stage"]],
+    ["ib-picker", ["ib-option"]],
   ];
   for (const [container, allowed] of containerRules) {
     const containerRe = new RegExp(`<${container}\\b${ATTR_SRC}>([\\s\\S]*?)<\\/${container}>`, "g");
@@ -1200,6 +1477,19 @@ function validateStrictContainers(inner, innerOffset, src, ctx) {
             for (const stray of laneRest.matchAll(/<\/?ib-[a-z0-9-]+/gi)) {
               ctx.errors.push(`line ${lineAt(src, laneOffset + stray.index)} <ib-lane>: unknown or misplaced ${stray[0]}> tag`);
             }
+          } else if (child === "ib-option" && childBody !== undefined) {
+            const optOffset = bodyOffset + matchIdx + 1 + child.length + (attrsRaw || "").length + 1;
+            const previewRe = new RegExp(`<ib-preview\\b${ATTR_SRC}>([\\s\\S]*?)<\\/ib-preview>`, "g");
+            const optRest = childBody.replace(previewRe, (pFull, pAttrs, pBody, pIdx) => {
+              const pOffset = optOffset + pIdx + 1 + "ib-preview".length + (pAttrs || "").length + 1;
+              for (const stray of (pBody || "").matchAll(/<\/?ib-[a-z0-9-]+/gi)) {
+                ctx.errors.push(`line ${lineAt(src, pOffset + stray.index)} <ib-preview>: unknown or misplaced ${stray[0]}> tag`);
+              }
+              return maskKeepNewlines(pFull);
+            });
+            for (const stray of optRest.matchAll(/<\/?ib-[a-z0-9-]+/gi)) {
+              ctx.errors.push(`line ${lineAt(src, optOffset + stray.index)} <ib-option>: unknown or misplaced ${stray[0]}> tag`);
+            }
           } else if (child !== "ib-stage" && childBody !== undefined) {
             const childOffset = bodyOffset + matchIdx + 1 + child.length + (attrsRaw || "").length + 1;
             for (const stray of childBody.matchAll(/<\/?ib-[a-z0-9-]+/gi)) {
@@ -1216,11 +1506,13 @@ function validateStrictContainers(inner, innerOffset, src, ctx) {
   }
 }
 
-export function compileSource(src) {
+export function compileSource(src, options = {}) {
   const ctx = {
     errors: [],
     warnings: [],
     stageFocusChecks: [],
+    baseDir: options.baseDir || null,
+    lang: "en",
     stats: {
       srcLines: src.split("\n").length,
       figures: 0,
@@ -1249,6 +1541,7 @@ export function compileSource(src) {
     const attrs = parseAttrs(pageMatch[1]);
     title = attrs.title || title;
     lang = attrs.lang || lang;
+    ctx.lang = lang;
     inner = pageMatch[2];
     innerOffset = pageMatch.index + 1 + "ib-page".length + (pageMatch[1] || "").length + 1;
   } else {
@@ -1277,6 +1570,7 @@ export function compileSource(src) {
     "ib-lanes": renderLanes,
     "ib-stepper": renderStepper,
     "ib-trend": renderTrend,
+    "ib-picker": renderPicker,
     "ib-details": renderDetails,
   };
 
@@ -1334,6 +1628,8 @@ export function compileSource(src) {
     }
   }
   delete ctx.stageFocusChecks;
+  delete ctx.baseDir;
+  delete ctx.lang;
 
   const baseCss = readFileSync(resolve(KIT_DIR, "base.css"), "utf8");
   const runtimeJs = readFileSync(resolve(KIT_DIR, "runtime.js"), "utf8");
@@ -1394,7 +1690,7 @@ function main() {
     console.error(`ERROR cannot read ${inputPath}: ${err.code ?? err.message}`);
     process.exit(2);
   }
-  const res = compileSource(src);
+  const res = compileSource(src, { baseDir: dirname(inputPath) });
 
   for (const w of res.warnings) console.warn(`WARN  ${w}`);
   for (const e of res.errors) console.error(`ERROR ${e}`);

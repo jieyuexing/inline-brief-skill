@@ -11,6 +11,7 @@ Visual explanations fail when they wrap Markdown bullets in colored boxes. Follo
 | Architecture, request pipeline | `<ib-flow>` grid with action-verb edges + `<ib-stepper>` | static boxes named only after nouns |
 | Before vs. after, option A vs. B | `<ib-lanes>` sequential swimlanes with `gate` and `break` steps | two-column bullet comparison cards |
 | Multi-step state, feedback loop | `<ib-flow>` with a back edge (`curve="top"` or `"bottom"`) + `<ib-stepper>` synced via `focus` | a dense numbered paragraph list |
+| Visual shortlist, art/UI/architecture selection | `<ib-picker>` (`triage` / `multi` / `single`) with `src` local thumbnails or `<ib-preview>` SVGs + copyable summary bar | dumping raw images and asking the user to type `1/2/3/4` |
 | Commands, checklists, raw output | `<ib-details>` folded at the bottom | reference tables in the first viewport |
 
 ## 2. Signal discipline

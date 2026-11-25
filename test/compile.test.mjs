@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -10,7 +10,7 @@ import { compileSource, VERSION } from "../skills/inline-brief/scripts/compile.m
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "skills/inline-brief/scripts/compile.mjs");
-const DEMOS = ["cache-read-path", "repo-health-audit"];
+const DEMOS = ["cache-read-path", "repo-health-audit", "visual-direction-picker"];
 
 const page = (body) => `<ib-page title="T">${body}</ib-page>`;
 const trend = (attrs, points) => page(`<ib-trend ${attrs}>${points}</ib-trend>`);
@@ -22,16 +22,20 @@ function tmpDir() {
 
 for (const name of DEMOS) {
   test(`demo ${name} compiles with zero errors and zero warnings`, () => {
-    const res = compileSource(readFileSync(join(ROOT, `examples/${name}.src.html`), "utf8"));
+    const res = compileSource(readFileSync(join(ROOT, `examples/${name}.src.html`), "utf8"), {
+      baseDir: join(ROOT, "examples"),
+    });
     assert.deepEqual(res.errors, []);
     assert.deepEqual(res.warnings, []);
-    assert.ok(res.stats.figures >= 3);
+    assert.ok(res.stats.figures >= 2);
     assert.doesNotMatch(res.html, /https?:\/\//i, "output must stay offline and self-contained");
     assert.match(res.html, /viewBox="0 0 \d+ \d+"/);
   });
 
   test(`committed ${name}.html matches a fresh compile`, () => {
-    const res = compileSource(readFileSync(join(ROOT, `examples/${name}.src.html`), "utf8"));
+    const res = compileSource(readFileSync(join(ROOT, `examples/${name}.src.html`), "utf8"), {
+      baseDir: join(ROOT, "examples"),
+    });
     assert.equal(readFileSync(join(ROOT, `examples/${name}.html`), "utf8"), res.html);
   });
 }
@@ -667,4 +671,259 @@ test("distribution manifests share name, version, license, repository, unofficia
   const verOut = spawnSync(process.execPath, [CLI, "--version"], { encoding: "utf8" });
   assert.equal(verOut.status, 0);
   assert.equal(verOut.stdout.trim(), pkg.version);
+});
+
+test("picker: valid triage/multi/single, zh localization, data URI, local raster inlining, and <ib-preview>", () => {
+  const dir = tmpDir();
+  mkdirSync(join(dir, "imgs"), { recursive: true });
+  const tinyPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64"
+  );
+  writeFileSync(join(dir, "imgs/a.png"), tinyPng);
+
+  const src = `<ib-page title="选型" lang="zh-CN">
+  <ib-picker title="挑 1–2 个方向" mode="triage" cols="2">
+    <ib-option id="01" title="方案一" group="3D" badge="CC0" tone="ok" src="imgs/a.png" fit="pixel" focus="a">
+      <p>本地 PNG 编译期内联</p>
+    </ib-option>
+    <ib-option id="02" title="方案二" group="UI" badge="推荐" tone="info" focus="b">
+      <ib-preview><svg viewBox="0 0 100 60"><rect width="100" height="60" fill="var(--card)" stroke="var(--border)"/></svg></ib-preview>
+      <p>内联 SVG 预览</p>
+    </ib-option>
+    <ib-option id="03" title="方案三" group="UI" src="data:image/png;base64,AAAA" fit="contain">
+      <p>Data URI 预览</p>
+    </ib-option>
+  </ib-picker>
+</ib-page>`;
+
+  const res = compileSource(src, { baseDir: dir });
+  assert.deepEqual(res.errors, []);
+  assert.deepEqual(res.warnings, []);
+  assert.equal(res.stats.figures, 1);
+  assert.equal(res.stats.interactive, 1);
+  assert.match(res.html, /data:image\/png;base64,iVBORw0KGgo/);
+  assert.match(res.html, /ib-fit-pixel/);
+  assert.match(res.html, /ib-fit-contain/);
+  assert.match(res.html, /★ 心仪/);
+  assert.match(res.html, /✕ 排除/);
+  assert.match(res.html, /复制选择/);
+  assert.match(res.html, /data-pick-filter="3D"/);
+  assert.match(res.html, /data-pick-filter="UI"/);
+
+  // Single mode without media or groups omits filter bar & media wrapper cleanly
+  const singleRes = compileSource(
+    page(`<ib-picker mode="single" cols="3">
+      <ib-option id="A" title="Keep current">Fastest</ib-option>
+      <ib-option id="B" title="Migrate now">Cleaner</ib-option>
+    </ib-picker>`)
+  );
+  assert.deepEqual(singleRes.errors, []);
+  assert.doesNotMatch(singleRes.html, /class="ib-pick-filters"/);
+  assert.doesNotMatch(singleRes.html, /class="ib-pick-media"/);
+  assert.match(singleRes.html, /◉ Choose/);
+  assert.match(singleRes.html, /--ib-pick-cols:3/);
+});
+
+test("picker: rejects schema errors, stray tags, and unsafe image paths", () => {
+  const dir = tmpDir();
+  const outside = tmpDir();
+  const tinyPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64"
+  );
+  writeFileSync(join(outside, "secret.png"), tinyPng);
+  writeFileSync(join(dir, "note.txt"), "hi");
+  writeFileSync(join(dir, "huge.png"), Buffer.alloc(2 * 1024 * 1024 + 16));
+  symlinkSync(join(outside, "secret.png"), join(dir, "escape.png"));
+
+  const badSchema = compileSource(
+    page(`<ib-picker mode="bogus" cols="4">
+      <ib-option id="01" title="A" fit="stretch" tone="nope" src="https://evil.example/a.png">
+        <ib-preview><svg viewBox="0 0 10 10"></svg></ib-preview>
+      </ib-option>
+      <ib-option id="01" title="">x</ib-option>
+      <ib-bar label="stray" value="1"></ib-bar>
+    </ib-picker>`)
+  );
+  assert.ok(badSchema.errors.some((e) => e.includes('unknown mode="bogus"')));
+  assert.ok(badSchema.errors.some((e) => e.includes('unsupported cols="4"')));
+  assert.ok(badSchema.errors.some((e) => e.includes('unknown fit="stretch"')));
+  assert.ok(badSchema.errors.some((e) => e.includes('unknown tone="nope"')));
+  assert.ok(badSchema.errors.some((e) => e.includes("external <ib-option src> URL forbidden")));
+  assert.ok(badSchema.errors.some((e) => e.includes("specify either src or <ib-preview>, not both")));
+  assert.ok(badSchema.errors.some((e) => e.includes('duplicate option id')));
+  assert.ok(badSchema.errors.some((e) => e.includes("missing required title attribute")));
+  assert.ok(badSchema.errors.some((e) => e.includes("<ib-picker>: unknown or misplaced <ib-bar>")));
+
+  const tooFew = compileSource(page(`<ib-picker><ib-option id="01" title="Only one">x</ib-option></ib-picker>`));
+  assert.ok(tooFew.errors.some((e) => e.includes("needs at least 2 <ib-option> (found 1)")));
+
+  const badPaths = compileSource(
+    page(`<ib-picker>
+      <ib-option id="1" title="Abs" src="/etc/hosts">x</ib-option>
+      <ib-option id="2" title="Trav" src="../secret.png">x</ib-option>
+      <ib-option id="3" title="Ext" src="note.txt">x</ib-option>
+      <ib-option id="4" title="Sym" src="escape.png">x</ib-option>
+      <ib-option id="5" title="Miss" src="missing.png">x</ib-option>
+      <ib-option id="6" title="Huge" src="huge.png">x</ib-option>
+      <ib-option id="7" title="BadData" src="data:text/plain,abc">x</ib-option>
+    </ib-picker>`),
+    { baseDir: dir }
+  );
+  assert.ok(badPaths.errors.some((e) => e.includes("no absolute paths")));
+  assert.ok(badPaths.errors.some((e) => e.includes('".." forbidden')));
+  assert.ok(badPaths.errors.some((e) => e.includes("unsupported local image extension")));
+  assert.ok(badPaths.errors.some((e) => e.includes("resolves outside the source directory")));
+  assert.ok(badPaths.errors.some((e) => e.includes("not found relative to source directory")));
+  assert.ok(badPaths.errors.some((e) => e.includes("max 2 MiB")));
+  assert.ok(badPaths.errors.some((e) => e.includes("src data URI must be an image")));
+});
+
+test("kit runtime: picker filtering, triage/single states, live summary, clear, and clipboard copy", async () => {
+  class FakeClassList {
+    constructor() { this.set = new Set(); }
+    add(...c) { c.forEach((x) => this.set.add(x)); }
+    remove(...c) { c.forEach((x) => this.set.delete(x)); }
+    toggle(c, force) {
+      if (force === undefined) return this.set.has(c) ? (this.set.delete(c), false) : (this.set.add(c), true);
+      if (force) this.set.add(c); else this.set.delete(c);
+      return force;
+    }
+    contains(c) { return this.set.has(c); }
+  }
+  class FakeEl {
+    constructor(tag, attrs = {}, parent = null) {
+      this.tag = tag;
+      this.attrs = { ...attrs };
+      this.dataset = {};
+      for (const [k, v] of Object.entries(attrs)) {
+        if (k.startsWith("data-")) {
+          const camel = k.slice(5).replace(/-([a-z])/g, (_, ch) => ch.toUpperCase());
+          this.dataset[camel] = v;
+        }
+      }
+      this.parent = parent;
+      this.children = [];
+      this.classList = new FakeClassList();
+      if (attrs.class) this.classList.add(...attrs.class.split(/\s+/).filter(Boolean));
+      this.listeners = {};
+      this.textContent = attrs.text || "";
+      this.hidden = Boolean(attrs.hidden);
+    }
+    getAttribute(name) { return this.attrs[name] ?? null; }
+    setAttribute(name, val) { this.attrs[name] = String(val); }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    async dispatch(type) {
+      for (const fn of this.listeners[type] || []) await fn({ target: this });
+    }
+    matches(sel) {
+      if (sel.startsWith(".")) return this.classList.contains(sel.slice(1));
+      const m = /^\[([a-z-]+)\]$/.exec(sel);
+      if (m) return this.attrs[m[1]] !== undefined;
+      return false;
+    }
+    querySelectorAll(sel) {
+      const out = [];
+      const walk = (n) => {
+        for (const c of n.children) {
+          if (c.matches(sel)) out.push(c);
+          walk(c);
+        }
+      };
+      walk(this);
+      return out;
+    }
+    querySelector(sel) { return this.querySelectorAll(sel)[0] ?? null; }
+  }
+
+  const root = new FakeEl("div");
+  function makePicker(mode) {
+    const p = new FakeEl("section", {
+      class: "ib-picker",
+      "data-mode": mode,
+      "data-empty-text": "Empty",
+      "data-like-prefix": "Shortlist: ",
+      "data-skip-prefix": "Skip: ",
+      "data-select-prefix": "Selected: ",
+      "data-item-sep": ", ",
+      "data-group-sep": " | ",
+      "data-copied-label": "Copied",
+    }, root);
+    const pillAll = new FakeEl("button", { class: "ib-pick-pill is-active", "data-pick-filter": "__all__" }, p);
+    const pillA = new FakeEl("button", { class: "ib-pick-pill", "data-pick-filter": "G1" }, p);
+    const c1 = new FakeEl("article", { class: "ib-opt", "data-opt-id": "01", "data-opt-title": "Alpha", "data-opt-group": "G1" }, p);
+    const c2 = new FakeEl("article", { class: "ib-opt", "data-opt-id": "02", "data-opt-title": "Beta", "data-opt-group": "G2" }, p);
+    if (mode === "triage") {
+      c1.children.push(
+        new FakeEl("button", { "data-pick-act": "like" }, c1),
+        new FakeEl("button", { "data-pick-act": "skip" }, c1)
+      );
+      c2.children.push(
+        new FakeEl("button", { "data-pick-act": "like" }, c2),
+        new FakeEl("button", { "data-pick-act": "skip" }, c2)
+      );
+    } else {
+      c1.children.push(new FakeEl("button", { "data-pick-act": "select" }, c1));
+      c2.children.push(new FakeEl("button", { "data-pick-act": "select" }, c2));
+    }
+    const sum = new FakeEl("div", { class: "ib-pick-summary" }, p);
+    const clear = new FakeEl("button", { "data-pick-clear": "", hidden: true }, p);
+    const copy = new FakeEl("button", { "data-pick-copy": "", text: "Copy selection" }, p);
+    p.children.push(pillAll, pillA, c1, c2, sum, clear, copy);
+    root.children.push(p);
+    return { p, pillAll, pillA, c1, c2, sum, clear, copy };
+  }
+
+  const triage = makePicker("triage");
+  const single = makePicker("single");
+  const clipboardWrites = [];
+  const runtimeSrc = readFileSync(join(ROOT, "skills/inline-brief/kit/runtime.js"), "utf8");
+  vm.runInNewContext(runtimeSrc, {
+    document: {
+      querySelectorAll: (sel) => root.querySelectorAll(sel),
+      addEventListener: () => {},
+    },
+    navigator: {
+      clipboard: {
+        writeText: async (text) => { clipboardWrites.push(text); },
+      },
+    },
+    setTimeout: () => 1,
+    clearTimeout: () => {},
+    setInterval: () => 1,
+    clearInterval: () => {},
+  });
+
+  // Filter hides G2
+  await triage.pillA.dispatch("click");
+  assert.equal(triage.c1.hidden, false);
+  assert.equal(triage.c2.hidden, true);
+  await triage.pillAll.dispatch("click");
+  assert.equal(triage.c2.hidden, false);
+
+  // Triage like + skip updates summary and copies cleanly
+  await triage.c1.children[0].dispatch("click");
+  await triage.c2.children[1].dispatch("click");
+  assert.equal(triage.c1.classList.contains("is-liked"), true);
+  assert.equal(triage.c2.classList.contains("is-skipped"), true);
+  assert.equal(triage.sum.textContent, "Shortlist: 01 Alpha | Skip: 02 Beta");
+  assert.equal(triage.clear.hidden, false);
+
+  await triage.copy.dispatch("click");
+  assert.deepEqual(clipboardWrites, ["Shortlist: 01 Alpha | Skip: 02 Beta"]);
+  assert.equal(triage.copy.textContent, "Copied");
+
+  // Clear resets triage without affecting single picker
+  await single.c1.children[0].dispatch("click");
+  assert.equal(single.sum.textContent, "Selected: 01 Alpha");
+  await single.c2.children[0].dispatch("click");
+  assert.equal(single.c1.classList.contains("is-selected"), false);
+  assert.equal(single.c2.classList.contains("is-selected"), true);
+  assert.equal(single.sum.textContent, "Selected: 02 Beta");
+
+  await triage.clear.dispatch("click");
+  assert.equal(triage.sum.textContent, "Empty");
+  assert.equal(triage.clear.hidden, true);
+  assert.equal(single.sum.textContent, "Selected: 02 Beta");
 });

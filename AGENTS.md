@@ -30,7 +30,7 @@ Guidance for coding agents that install or use this repository. Humans: see [REA
 
 ```
 skills/inline-brief/   SKILL.md, references/, kit/ (base.css, runtime.js), scripts/compile.mjs
-examples/              two demo sources and their compiled pages
+examples/              three demo sources (flow, audit, visual picker) and their compiled pages
 test/compile.test.mjs  node:test suite (no dependencies)
 ```
 
