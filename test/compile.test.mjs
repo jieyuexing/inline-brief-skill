@@ -1133,3 +1133,64 @@ test("kit runtime: picker notes, zoom compare dialog sync, and clipboard-blocked
   assert.equal(fallback.hidden, true);
   assert.equal(sum.textContent, "Empty");
 });
+
+test("attribute and label text decode character references once (&amp;lt; stays literal &lt;)", () => {
+  const res = compileSource(
+    page(`<ib-kpis><ib-kpi label="a &amp;lt; b" value="&amp;gt;"></ib-kpi></ib-kpis>
+<ib-lanes title="L" caption="c"><ib-lane name="x"><ib-step>&amp;lt;b&amp;gt;</ib-step></ib-lane></ib-lanes>`)
+  );
+  assert.deepEqual(res.errors, []);
+  assert.ok(res.html.includes('<div class="ib-kpi-label">a &amp;lt; b</div>'));
+  assert.ok(res.html.includes('<div class="ib-kpi-val">&amp;gt;</div>'));
+  assert.ok(res.html.includes('<span class="ib-step-title">&amp;lt;b&amp;gt;</span>'));
+});
+
+// Line numbers stay exact after earlier blocks are expanded and when an opening tag is longer
+// than the lines that follow it.
+test("errors in later blocks and in child tags point at their own source line", () => {
+  const src = [
+    '<ib-page title="t">',
+    '<ib-kpis>',
+    '<ib-kpi label="a" value="1"></ib-kpi>',
+    '<ib-kpi label="b" value="2"></ib-kpi>',
+    "</ib-kpis>",
+    '<ib-flow title="a rather long flow title that makes the opening tag wide" note="and a long note too">',
+    '<ib-node id="n0" col="1" row="1">a</ib-node>',
+    '<ib-node id="n1" col="2" row="1">b</ib-node>',
+    '<ib-edge from="n0" to="n1" label="calls"></ib-edge>',
+    '<ib-edge from="n1" to="n0"></ib-edge>',
+    "</ib-flow>",
+    "</ib-page>",
+  ].join("\n");
+  assert.deepEqual(compileSource(src).errors.sort(), [
+    "line 10 <ib-edge>: missing label attribute (every edge carries an action verb)",
+    "line 6 <ib-flow>: missing required caption attribute (state the figure's claim)",
+  ]);
+});
+
+test("a stray <ib-*> tag is reported once, on its own line, whatever block it sits in", () => {
+  const cases = {
+    details: ['<ib-details summary="s">', "<p>x</p>", "<ib-bogus>x</ib-bogus>", "</ib-details>"],
+    grid: ["<ib-grid>", "<p>x</p>", "<ib-bogus>x</ib-bogus>", "</ib-grid>"],
+    kpis: ["<ib-kpis>", '<ib-kpi label="a" value="1"></ib-kpi>', "<ib-bogus>x</ib-bogus>", "</ib-kpis>"],
+    stepper: ['<ib-stepper title="s">', '<ib-stage title="a">x', "<ib-bogus>x</ib-bogus></ib-stage>", "</ib-stepper>"],
+    picker: ['<ib-picker title="p" caption="c">', '<ib-option id="a" title="A"><p>x</p>', "<ib-bogus>x</ib-bogus></ib-option>", "</ib-picker>"],
+  };
+  for (const [name, lines] of Object.entries(cases)) {
+    const src = ['<ib-page title="t">', '<ib-kpis><ib-kpi label="k" value="1"></ib-kpi></ib-kpis>', ...lines, "</ib-page>"].join("\n");
+    const errors = compileSource(src).errors.filter((e) => e.includes("ib-bogus"));
+    // One report for the opening and one for the closing tag, both on line 5.
+    assert.equal(errors.length, 2, `${name}: ${JSON.stringify(errors)}`);
+    for (const e of errors) assert.match(e, /^line 5\b/, `${name}: ${e}`);
+  }
+});
+
+test("raw < and > inside quoted attribute values stay data", () => {
+  const res = compileSource(
+    page(`<ib-kpis><ib-kpi label="p95 <style> a > b" value="</ib-kpis>"></ib-kpi></ib-kpis>
+<ib-kpis><ib-kpi label="ok" value="1"></ib-kpi></ib-kpis>`)
+  );
+  assert.deepEqual(res.errors, []);
+  assert.ok(res.html.includes('<div class="ib-kpi-label">p95 &lt;style&gt; a &gt; b</div>'));
+  assert.ok(res.html.includes('<div class="ib-kpi-val">&lt;/ib-kpis&gt;</div>'));
+});

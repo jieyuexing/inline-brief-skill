@@ -88,12 +88,11 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+const BASIC_REFS = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"' };
+
+// Single pass so "&amp;lt;" decodes to the literal text "&lt;", not "<".
 function unescBasic(s) {
-  return String(s ?? "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"');
+  return String(s ?? "").replace(/&(?:amp|lt|gt|quot);/g, (ref) => BASIC_REFS[ref]);
 }
 
 function maskKeepNewlines(s) {
@@ -102,6 +101,53 @@ function maskKeepNewlines(s) {
 
 function stripHtmlComments(s) {
   return s.replace(/<!--[\s\S]*?-->/g, maskKeepNewlines);
+}
+
+// Quoted attribute values may hold raw "<" and ">" (HTML allows it), but the block and tag
+// scanners below are regex based and would read "<style>" or "</ib-kpis>" inside a value as
+// markup. Encode them as &lt; / &gt; up front: parseAttrs decodes them again, browsers treat
+// both spellings the same, and no newline moves, so reported line numbers stay exact.
+// Comments and raw <script>/<style> bodies are copied unchanged.
+function encodeBracketsInAttrValues(s) {
+  let out = "";
+  let i = 0;
+  while (i < s.length) {
+    if (s.startsWith("<!--", i)) {
+      const close = s.indexOf("-->", i + 4);
+      const end = close < 0 ? s.length : close + 3;
+      out += s.slice(i, end);
+      i = end;
+      continue;
+    }
+    const open = /^<([a-zA-Z][\w:-]*)/.exec(s.slice(i, i + 64));
+    if (!open) {
+      out += s[i++];
+      continue;
+    }
+    let j = i + open[0].length;
+    let quote = null;
+    out += open[0];
+    while (j < s.length) {
+      const c = s[j++];
+      if (quote) {
+        if (c === quote) quote = null;
+        out += c === "<" ? "&lt;" : c === ">" ? "&gt;" : c;
+        continue;
+      }
+      out += c;
+      if (c === '"' || c === "'") quote = c;
+      else if (c === ">") break;
+    }
+    i = j;
+    const name = open[1].toLowerCase();
+    if (name === "script" || name === "style") {
+      const close = s.toLowerCase().indexOf(`</${name}`, i);
+      const end = close < 0 ? s.length : close;
+      out += s.slice(i, end);
+      i = end;
+    }
+  }
+  return out;
 }
 
 function lineAt(source, index) {
@@ -189,8 +235,8 @@ function approxLabelWidth(text) {
   return w;
 }
 
-function renderKpis(attrs, body, offset, src, ctx) {
-  const items = parseChildTags(body, "ib-kpi", offset, src);
+function renderKpis(attrs, body, offset, src, ctx, bodyOffset = offset) {
+  const items = parseChildTags(body, "ib-kpi", bodyOffset, src);
   if (!items.length) {
     ctx.errors.push(`line ${lineAt(src, offset)} <ib-kpis>: must contain at least one <ib-kpi>`);
     return "";
@@ -211,9 +257,9 @@ function renderKpis(attrs, body, offset, src, ctx) {
   return `<div class="ib-kpis" style="--ib-kpi-cols:${cols}">${cards}</div>`;
 }
 
-function renderBars(attrs, body, offset, src, ctx) {
+function renderBars(attrs, body, offset, src, ctx, bodyOffset = offset) {
   const barLine = lineAt(src, offset);
-  const items = parseChildTags(body, "ib-bar", offset, src);
+  const items = parseChildTags(body, "ib-bar", bodyOffset, src);
   if (!items.length) {
     ctx.errors.push(`line ${barLine} <ib-bars>: must contain at least one <ib-bar>`);
     return "";
@@ -265,13 +311,13 @@ function renderBars(attrs, body, offset, src, ctx) {
   </div>`;
 }
 
-function renderFlow(attrs, body, offset, src, ctx) {
+function renderFlow(attrs, body, offset, src, ctx, bodyOffset = offset) {
   const flowLine = lineAt(src, offset);
   if (!attrs.caption) {
     ctx.errors.push(`line ${flowLine} <ib-flow>: missing required caption attribute (state the figure's claim)`);
   }
-  const nodes = parseChildTags(body, "ib-node", offset, src);
-  const edges = parseChildTags(body, "ib-edge", offset, src);
+  const nodes = parseChildTags(body, "ib-node", bodyOffset, src);
+  const edges = parseChildTags(body, "ib-edge", bodyOffset, src);
   if (!nodes.length) {
     ctx.errors.push(`line ${flowLine} <ib-flow>: must contain at least one <ib-node>`);
     return "";
@@ -320,6 +366,9 @@ function renderFlow(attrs, body, offset, src, ctx) {
     }
     if (!nodeMap.has(e.attrs.to)) {
       ctx.errors.push(`line ${e.line} <ib-edge>: unknown to="${e.attrs.to ?? ""}"`);
+    }
+    if (!(e.attrs.label ?? "").trim()) {
+      ctx.errors.push(`line ${e.line} <ib-edge>: missing label attribute (every edge carries an action verb)`);
     }
     validateTone(e.attrs.tone, e.line, "ib-edge", ctx);
     if (e.attrs.curve !== undefined && !VALID_CURVES.has(e.attrs.curve)) {
@@ -490,12 +539,12 @@ function anchorFor(x, w, svgW) {
   return "middle";
 }
 
-function renderTrend(attrs, body, offset, src, ctx) {
+function renderTrend(attrs, body, offset, src, ctx, bodyOffset = offset) {
   const line = lineAt(src, offset);
   if (!attrs.caption) {
     ctx.errors.push(`line ${line} <ib-trend>: missing required caption attribute (state the figure's claim)`);
   }
-  const items = parseChildTags(body, "ib-point", offset, src);
+  const items = parseChildTags(body, "ib-point", bodyOffset, src);
   if (items.length < 2) {
     ctx.errors.push(`line ${line} <ib-trend>: needs at least 2 <ib-point> (found ${items.length})`);
     return "";
@@ -640,8 +689,8 @@ function renderTrend(attrs, body, offset, src, ctx) {
   </div>`;
 }
 
-function renderLanes(attrs, body, offset, src, ctx) {
-  const lanes = parseChildTags(body, "ib-lane", offset, src);
+function renderLanes(attrs, body, offset, src, ctx, bodyOffset = offset) {
+  const lanes = parseChildTags(body, "ib-lane", bodyOffset, src);
   if (!lanes.length) {
     ctx.errors.push(`line ${lineAt(src, offset)} <ib-lanes>: must contain at least one <ib-lane>`);
     return "";
@@ -694,8 +743,8 @@ function renderLanes(attrs, body, offset, src, ctx) {
   </div>`;
 }
 
-function renderStepper(attrs, body, offset, src, ctx) {
-  const stages = parseChildTags(body, "ib-stage", offset, src);
+function renderStepper(attrs, body, offset, src, ctx, bodyOffset = offset) {
+  const stages = parseChildTags(body, "ib-stage", bodyOffset, src);
   if (!stages.length) {
     ctx.errors.push(`line ${lineAt(src, offset)} <ib-stepper>: must contain at least one <ib-stage>`);
     return "";
@@ -815,7 +864,7 @@ function resolvePickerImageSrc(rawSrc, line, ctx) {
   return `data:${mime};base64,${b64}`;
 }
 
-function renderPicker(attrs, body, offset, src, ctx) {
+function renderPicker(attrs, body, offset, src, ctx, bodyOffset = offset) {
   const line = lineAt(src, offset);
   let mode = attrs.mode === undefined ? "triage" : attrs.mode;
   if (!VALID_PICK_MODES.has(mode)) {
@@ -828,7 +877,7 @@ function renderPicker(attrs, body, offset, src, ctx) {
     cols = "2";
   }
 
-  const options = parseChildTags(body, "ib-option", offset, src);
+  const options = parseChildTags(body, "ib-option", bodyOffset, src);
   if (options.length < 2) {
     ctx.errors.push(`line ${line} <ib-picker>: needs at least 2 <ib-option> (found ${options.length})`);
     return "";
@@ -1563,7 +1612,43 @@ function validateStrictContainers(inner, innerOffset, src, ctx) {
   }
 }
 
-export function compileSource(src, options = {}) {
+// Expanding blocks changes the text's length, so an offset in the expanded text no longer
+// points at the source. replaceTracked logs each replacement; mapToUnexpanded walks the log
+// back. When the output carries the block body verbatim (details, grid), offsets inside it map
+// to the same character of the source body; offsets in other generated text return the index
+// of the edit that produced it.
+function replaceTracked(text, tag, re, fn, edits) {
+  let delta = 0;
+  return text.replace(re, (...args) => {
+    const [full, , body = ""] = args;
+    const offset = args[args.length - 2];
+    const out = fn(...args);
+    const bodyOld = full.length - `</${tag}>`.length - body.length;
+    const bodyNew = body.trim() && out.split(body).length === 2 ? out.indexOf(body) : -1;
+    edits.push({ start: offset + delta, oldLen: full.length, newLen: out.length, bodyOld, bodyNew, bodyLen: body.length });
+    delta += out.length - full.length;
+    return out;
+  });
+}
+
+function mapToUnexpanded(index, edits, upto = edits.length) {
+  let x = index;
+  for (let k = upto - 1; k >= 0; k--) {
+    const e = edits[k];
+    if (x < e.start) continue;
+    if (x >= e.start + e.newLen) {
+      x += e.oldLen - e.newLen;
+      continue;
+    }
+    const rel = x - e.start;
+    if (e.bodyNew < 0 || rel < e.bodyNew || rel >= e.bodyNew + e.bodyLen) return { block: k };
+    x = e.start + e.bodyOld + (rel - e.bodyNew);
+  }
+  return { at: x };
+}
+
+export function compileSource(rawSrc, options = {}) {
+  const src = encodeBracketsInAttrValues(rawSrc);
   const ctx = {
     errors: [],
     warnings: [],
@@ -1632,24 +1717,50 @@ export function compileSource(src, options = {}) {
     "ib-details": renderDetails,
   };
 
+  // Positions come from the text before any block is expanded: expanding one block type
+  // changes the length of the text, so offsets measured afterwards point at the wrong line.
+  const unexpanded = inner;
+  const edits = [];
   for (const [tag, fn] of Object.entries(blockHandlers)) {
     const re = new RegExp(`<${tag}\\b${ATTR_SRC}>([\\s\\S]*?)<\\/${tag}>`, "g");
-    const positions = Array.from(inner.matchAll(re), (m) => innerOffset + m.index);
+    // offset: the block's opening tag (its own line); bodyOffset: the first character of its
+    // body, which child-tag line numbers are measured from.
+    const positions = Array.from(unexpanded.matchAll(re), (m) => ({
+      offset: innerOffset + m.index,
+      bodyOffset: innerOffset + m.index + tag.length + 2 + (m[1] || "").length,
+    }));
     let seen = 0;
-    inner = inner.replace(re, (full, rawAttrs, body) =>
-      fn(parseAttrs(rawAttrs || ""), body, positions[seen++] ?? innerOffset, src, ctx)
-    );
+    inner = replaceTracked(inner, tag, re, (full, rawAttrs, body) => {
+      const at = positions[seen++] ?? { offset: innerOffset, bodyOffset: innerOffset };
+      return fn(parseAttrs(rawAttrs || ""), body, at.offset, src, ctx, at.bodyOffset);
+    }, edits);
   }
 
   // Expand <ib-grid cols="2"> wrapper
-  inner = inner.replace(new RegExp(`<ib-grid\\b${ATTR_SRC}>([\\s\\S]*?)<\\/ib-grid>`, "g"), (_, rawAttrs, body) => {
+  inner = replaceTracked(inner, "ib-grid", new RegExp(`<ib-grid\\b${ATTR_SRC}>([\\s\\S]*?)<\\/ib-grid>`, "g"), (_, rawAttrs, body) => {
     const attrs = parseAttrs(rawAttrs || "");
     const cls = attrs.cols === "2" || !attrs.cols ? "ib-grid-2" : "ib-stack";
     return `<div class="${cls}">${body}</div>`;
-  });
+  }, edits);
 
+  // A stray inside a block's generated output (a stage or option body) is found again in the
+  // source block by order of appearance. Containers already report their own strays, so a tag
+  // already reported on the same line is not reported twice.
+  const strayCount = new Map();
   for (const stray of inner.matchAll(/<\/?ib-[a-z0-9-]+/gi)) {
-    ctx.errors.push(`line ${lineAt(src, innerOffset + stray.index)}: unknown or misplaced ${stray[0]}> tag`);
+    let { at, block } = mapToUnexpanded(stray.index, edits);
+    if (block !== undefined) {
+      const blockStart = mapToUnexpanded(edits[block].start, edits, block).at ?? 0;
+      const key = `${block}:${stray[0]}`;
+      const nth = strayCount.get(key) ?? 0;
+      strayCount.set(key, nth + 1);
+      at = blockStart - 1;
+      for (let i = 0; i <= nth && at !== -1; i++) at = unexpanded.indexOf(stray[0], at + 1);
+      if (at === -1) at = blockStart;
+    }
+    const line = lineAt(src, innerOffset + at);
+    if (ctx.errors.some((e) => e.startsWith(`line ${line} `) && e.includes(`${stray[0]}>`))) continue;
+    ctx.errors.push(`line ${line}: unknown or misplaced ${stray[0]}> tag`);
   }
 
   // Warn on dangling focus keys in <ib-stage> and .ib-ref
