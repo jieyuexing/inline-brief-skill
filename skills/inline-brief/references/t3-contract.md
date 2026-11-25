@@ -18,7 +18,7 @@ This skill targets T3 Code's inline sandboxed iframe (`html_preview` + `html_ren
 To keep every compiled brief strictly self-contained and reliable offline or behind proxies (where remote fonts, CDN scripts, or images stall on fake-IP DNS), `inline-brief` enforces a **zero external requests** policy beyond the host minimum:
 
 - **Zero external URLs.** Forbids `http(s)://` and protocol-relative `//` in `src`, `href`, `srcset`, `poster`, `data`, `action`, `formaction`, `xlink:href` (quoted or unquoted), CSS `@import` and `url()` (`<style>` and inline `style=`), embedded `<iframe>`/`<object>`/`<embed>`, and `<script>` network calls (`fetch(`, `XMLHttpRequest`, `import(`, or external URL strings).
-- **Allowed local URIs & compile-time image inlining.** `data:` URIs and page-local `#id` fragment anchors are allowed. `<ib-option src="assets/...">` also accepts relative raster image paths (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `<= 2 MiB`) strictly inside the `.src.html` directory (no `..`, no absolute paths, no symlink escapes), which `compile.mjs` inlines as `data:image/...;base64,...` into the output HTML.
+- **Allowed local URIs & compile-time image inlining.** `data:` URIs and page-local `#id` fragment anchors are allowed. `<ib-option src="assets/...">` also accepts relative raster image paths (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `<= 2 MiB` per file) strictly inside the `.src.html` directory (no `..`, no absolute paths, no symlink escapes), which `compile.mjs` inlines as `data:image/...;base64,...` into the output HTML. Total inlined images warn above `1.5 MiB` raw and fail above `6 MiB` raw (`~8 MiB` base64) to stay well within T3's `25 MiB` page cap and 6-second measurement timeout.
 
 ## Theme tokens (mandatory)
 

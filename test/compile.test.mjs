@@ -927,3 +927,209 @@ test("kit runtime: picker filtering, triage/single states, live summary, clear, 
   assert.equal(triage.clear.hidden, true);
   assert.equal(single.sum.textContent, "Selected: 02 Beta");
 });
+
+test("picker: total inlined image budget warns above 1.5 MiB and errors above 6 MiB", () => {
+  const dir = tmpDir();
+  const img900k = Buffer.alloc(900 * 1024, 0x42);
+  writeFileSync(join(dir, "a.png"), img900k);
+  writeFileSync(join(dir, "b.png"), img900k);
+
+  const warnRes = compileSource(
+    page(`<ib-picker>
+      <ib-option id="01" title="A" src="a.png">x</ib-option>
+      <ib-option id="02" title="B" src="b.png">x</ib-option>
+    </ib-picker>`),
+    { baseDir: dir }
+  );
+  assert.deepEqual(warnRes.errors, []);
+  assert.ok(warnRes.warnings.some((w) => w.includes("total inlined images") && w.includes("may slow inline preview")));
+
+  const img1800k = Buffer.alloc(1800 * 1024, 0x43);
+  for (const n of ["1", "2", "3", "4"]) writeFileSync(join(dir, `big${n}.png`), img1800k);
+  const errRes = compileSource(
+    page(`<ib-picker>
+      <ib-option id="01" title="A" src="big1.png">x</ib-option>
+      <ib-option id="02" title="B" src="big2.png">x</ib-option>
+      <ib-option id="03" title="C" src="big3.png">x</ib-option>
+      <ib-option id="04" title="D" src="big4.png">x</ib-option>
+    </ib-picker>`),
+    { baseDir: dir }
+  );
+  assert.ok(errRes.errors.some((e) => e.includes("exceed the 6 MiB page budget")));
+});
+
+test("kit runtime: picker notes, zoom compare dialog sync, and clipboard-blocked plain-text fallback", async () => {
+  class FakeClassList {
+    constructor() { this.set = new Set(); }
+    add(...c) { c.forEach((x) => this.set.add(x)); }
+    remove(...c) { c.forEach((x) => this.set.delete(x)); }
+    toggle(c, force) {
+      if (force === undefined) return this.set.has(c) ? (this.set.delete(c), false) : (this.set.add(c), true);
+      if (force) this.set.add(c); else this.set.delete(c);
+      return force;
+    }
+    contains(c) { return this.set.has(c); }
+  }
+  class FakeEl {
+    constructor(tag, attrs = {}, parent = null) {
+      this.tag = tag;
+      this.tagName = tag.toUpperCase();
+      this.attrs = { ...attrs };
+      this.dataset = {};
+      for (const [k, v] of Object.entries(attrs)) {
+        if (k.startsWith("data-")) {
+          const camel = k.slice(5).replace(/-([a-z])/g, (_, ch) => ch.toUpperCase());
+          this.dataset[camel] = v;
+        }
+      }
+      this.parent = parent;
+      this.children = [];
+      this.classList = new FakeClassList();
+      if (attrs.class) this.classList.add(...attrs.class.split(/\s+/).filter(Boolean));
+      this.listeners = {};
+      this.textContent = attrs.text || "";
+      this.innerHTML = attrs.html || "";
+      this.value = attrs.value || "";
+      this.hidden = Boolean(attrs.hidden);
+      this.open = false;
+      this.selected = false;
+    }
+    getAttribute(name) { return this.attrs[name] ?? null; }
+    setAttribute(name, val) { this.attrs[name] = String(val); }
+    removeAttribute(name) { delete this.attrs[name]; }
+    showModal() { this.open = true; }
+    close() { this.open = false; }
+    focus() {}
+    select() { this.selected = true; }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    async dispatch(type, ev = {}) {
+      for (const fn of this.listeners[type] || []) await fn({ target: this, ...ev });
+    }
+    matches(sel) {
+      if (sel.includes(" ")) {
+        const [pSel, cSel] = sel.split(/\s+/, 2);
+        return this.matches(cSel) && Boolean(this.parent && this.parent.matches(pSel));
+      }
+      if (sel.startsWith(".")) return this.classList.contains(sel.slice(1));
+      const m = /^\[([a-z-]+)\]$/.exec(sel);
+      if (m) return this.attrs[m[1]] !== undefined;
+      return this.tag.toLowerCase() === sel.toLowerCase();
+    }
+    querySelectorAll(sel) {
+      const out = [];
+      const walk = (n) => {
+        for (const c of n.children) {
+          if (c.matches(sel)) out.push(c);
+          walk(c);
+        }
+      };
+      walk(this);
+      return out;
+    }
+    querySelector(sel) { return this.querySelectorAll(sel)[0] ?? null; }
+  }
+
+  const root = new FakeEl("div");
+  const p = new FakeEl("section", {
+    class: "ib-picker",
+    "data-mode": "triage",
+    "data-empty-text": "Empty",
+    "data-like-prefix": "心仪：",
+    "data-skip-prefix": "排除：",
+    "data-note-prefix": "备注：",
+    "data-note-open": "（",
+    "data-note-close": "）",
+    "data-item-sep": "、",
+    "data-group-sep": " ｜ ",
+    "data-copy-fallback-label": "已选中，按 ⌘C 复制",
+  }, root);
+
+  function makeCard(id, title, src) {
+    const c = new FakeEl("article", { class: "ib-opt", "data-opt-id": id, "data-opt-title": title }, p);
+    const media = new FakeEl("div", { class: "ib-pick-media" }, c);
+    media.children.push(
+      new FakeEl("img", { src, alt: title }, media),
+      new FakeEl("button", { class: "ib-pick-zoom", "data-pick-zoom": "" }, media)
+    );
+    const sub = new FakeEl("div", { class: "ib-pick-sub", text: `${title} sub` }, c);
+    const note = new FakeEl("input", { class: "ib-pick-note", "data-pick-note": "" }, c);
+    const like = new FakeEl("button", { "data-pick-act": "like" }, c);
+    const skip = new FakeEl("button", { "data-pick-act": "skip" }, c);
+    c.children.push(media, sub, note, like, skip);
+    return { c, zoom: media.children[1], note, like, skip };
+  }
+
+  const c1 = makeCard("01", "武侠低模", "data:image/png;base64,AAA");
+  const c2 = makeCard("02", "像素浪客", "data:image/png;base64,BBB");
+  const sum = new FakeEl("div", { class: "ib-pick-summary" }, p);
+  const clear = new FakeEl("button", { "data-pick-clear": "", hidden: true }, p);
+  const copy = new FakeEl("button", { "data-pick-copy": "", text: "复制选择" }, p);
+  const fallback = new FakeEl("textarea", { class: "ib-pick-fallback", hidden: true }, p);
+
+  const dlg = new FakeEl("dialog", { class: "ib-pick-dialog" }, p);
+  const dlgId = new FakeEl("span", { class: "ib-pick-dlg-id" }, dlg);
+  const dlgName = new FakeEl("span", { class: "ib-pick-dlg-name" }, dlg);
+  const dlgPos = new FakeEl("span", { class: "ib-pick-dlg-pos" }, dlg);
+  const dlgPrev = new FakeEl("button", { "data-dlg-prev": "" }, dlg);
+  const dlgNext = new FakeEl("button", { "data-dlg-next": "" }, dlg);
+  const dlgClose = new FakeEl("button", { "data-dlg-close": "" }, dlg);
+  const dlgStage = new FakeEl("div", { class: "ib-pick-dlg-stage" }, dlg);
+  const dlgDesc = new FakeEl("div", { class: "ib-pick-dlg-desc" }, dlg);
+  const dlgNote = new FakeEl("input", { "data-dlg-note": "" }, dlg);
+  const dlgLike = new FakeEl("button", { "data-dlg-act": "like" }, dlg);
+  const dlgSkip = new FakeEl("button", { "data-dlg-act": "skip" }, dlg);
+  dlg.children.push(dlgId, dlgName, dlgPos, dlgPrev, dlgNext, dlgClose, dlgStage, dlgDesc, dlgNote, dlgLike, dlgSkip);
+
+  p.children.push(c1.c, c2.c, sum, clear, copy, fallback, dlg);
+  root.children.push(p);
+
+  const runtimeSrc = readFileSync(join(ROOT, "skills/inline-brief/kit/runtime.js"), "utf8");
+  vm.runInNewContext(runtimeSrc, {
+    document: {
+      querySelectorAll: (sel) => root.querySelectorAll(sel),
+      addEventListener: () => {},
+    },
+    navigator: {
+      clipboard: {
+        writeText: async () => { throw new Error("Permissions-Policy blocked"); },
+      },
+    },
+    setTimeout: () => 1,
+    clearTimeout: () => {},
+    setInterval: () => 1,
+    clearInterval: () => {},
+  });
+
+  // 1) Open zoom compare on card 01, shortlist + add note inside dialog, step to 02 and leave standalone note
+  await c1.zoom.dispatch("click");
+  assert.equal(dlg.open, true);
+  assert.equal(dlgId.textContent, "01");
+  assert.equal(dlgPos.textContent, "1/2");
+
+  await dlgLike.dispatch("click");
+  dlgNote.value = "衣袍再国风一点";
+  await dlgNote.dispatch("input");
+  assert.equal(c1.c.classList.contains("is-liked"), true);
+  assert.equal(c1.note.value, "衣袍再国风一点");
+
+  await dlgNext.dispatch("click");
+  assert.equal(dlgId.textContent, "02");
+  assert.equal(dlgPos.textContent, "2/2");
+  dlgNote.value = "刀光不错但换装慢";
+  await dlgNote.dispatch("input");
+  assert.equal(sum.textContent, "心仪：01 武侠低模（衣袍再国风一点） ｜ 备注：02 像素浪客（刀光不错但换装慢）");
+
+  // 2) Clipboard write blocked -> fallback textarea becomes visible, populated and selected
+  await copy.dispatch("click");
+  assert.equal(fallback.hidden, false);
+  assert.equal(fallback.value, "心仪：01 武侠低模（衣袍再国风一点） ｜ 备注：02 像素浪客（刀光不错但换装慢）");
+  assert.equal(fallback.selected, true);
+  assert.equal(copy.textContent, "已选中，按 ⌘C 复制");
+
+  // 3) Clear wipes states, notes, and hides fallback
+  await clear.dispatch("click");
+  assert.equal(c1.note.value, "");
+  assert.equal(c2.note.value, "");
+  assert.equal(fallback.hidden, true);
+  assert.equal(sum.textContent, "Empty");
+});

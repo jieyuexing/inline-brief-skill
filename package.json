@@ -1,6 +1,6 @@
 {
   "name": "inline-brief-skill",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Agent skill that turns evidence into interactive, theme-native inline visuals for T3 Code's html_render. Zero dependencies. Unofficial community skill, not affiliated with T3 Tools Inc.",
   "license": "MIT",
   "type": "module",

@@ -117,8 +117,12 @@ Lets the user filter candidates by category, mark choices directly on screen, an
 - `cols` is `2` (default, collapses to 1 column at `<= 560px`) or `3`.
 - `group` (optional): when at least 2 distinct groups exist, the compiler auto-renders a category filter pill bar (`All (N)` + one pill per group).
 - Visual thumbnail (optional — omit both `src` and `<ib-preview>` for clean text/decision cards):
-  - `src`: either a `data:image/...` URI or a **relative local raster image path** inside the `.src.html` directory (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `<= 2 MiB`; no `..`, no absolute paths, no symlink escapes). `compile.mjs` inlines local files as `data:image/...;base64,...` so the output stays strictly offline. External `http(s)://` URLs are rejected by Gate 3. `fit` is `cover` (default), `contain`, or `pixel` (`image-rendering: pixelated; object-fit: contain`).
+  - `src`: either a `data:image/...` URI or a **relative local raster image path** inside the `.src.html` directory (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `<= 2 MiB` per image; total inlined images warn above `1.5 MiB` raw and fail above `6 MiB` raw — resize/convert thumbnails to WebP `<= 640px` wide; no `..`, no absolute paths, no symlink escapes). `compile.mjs` inlines local files as `data:image/...;base64,...` so the output stays strictly offline. External `http(s)://` URLs are rejected by Gate 3. `fit` is `cover` (default), `contain`, or `pixel` (`image-rendering: pixelated; object-fit: contain`).
   - `<ib-preview>...</ib-preview>`: inline theme-native `<svg viewBox="...">` or compact HTML preview. Cannot be combined with `src` on the same `<ib-option>`.
+- Built-in **zoom & A/B compare** + **per-card notes** + **sandbox copy fallback**:
+  - Cards with media render a `⤢` zoom/compare button (clicking an `<ib-preview>` SVG also opens it; bare `<img>` clicks remain compatible with T3's native image lightbox). Inside the `<dialog>` compare view, users step `←` / `→` across visible candidates and mark or annotate directly.
+  - Each card includes a short single-line note input; notes are appended inside parentheses in the copied summary (and standalone notes on unmarked cards appear under `Notes:` / `备注：`).
+  - If the sandboxed iframe blocks clipboard writes, clicking Copy reveals and auto-selects a read-only plain-text `<textarea>` for instant `⌘C` / `Ctrl+C`.
 - `badge` + `tone` (`neutral`, `info`, `ok`, `warn`, `danger`) adds a status pill (e.g. license, risk, recommendation). `focus` links the card to other charts/flows on the page.
 
 ## 8. `<ib-grid>` - two-column wrapper

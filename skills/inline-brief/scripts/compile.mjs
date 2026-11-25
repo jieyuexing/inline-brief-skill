@@ -14,7 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const KIT_DIR = resolve(__dirname, "../kit");
 
 // Single version source for every install path (copied skill directories ship without package.json).
-export const VERSION = "0.2.0";
+export const VERSION = "0.2.1";
 
 const TONE_STROKE = {
   neutral: "var(--border)",
@@ -54,6 +54,8 @@ const LOCAL_IMAGE_MIMES = {
   ".gif": "image/gif",
 };
 const MAX_LOCAL_IMAGE_BYTES = 2 * 1024 * 1024;
+const WARN_TOTAL_IMAGE_BYTES = Math.round(1.5 * 1024 * 1024);
+const MAX_TOTAL_IMAGE_BYTES = 6 * 1024 * 1024;
 
 // Standard CSS Color 4 named colors (excluding allowed keywords like transparent / currentColor).
 const NAMED_COLORS = new Set([
@@ -754,6 +756,10 @@ function resolvePickerImageSrc(rawSrc, line, ctx) {
       ctx.errors.push(`line ${line} <ib-option>: src data URI must be an image (data:image/...)`);
       return "";
     }
+    const comma = val.indexOf(",");
+    const payload = comma >= 0 ? val.slice(comma + 1) : "";
+    const approxBytes = /;base64,/i.test(val.slice(0, comma + 1)) ? Math.floor((payload.length * 3) / 4) : Buffer.byteLength(payload, "utf8");
+    ctx.inlinedImageBytes += approxBytes;
     return val;
   }
   if (!ctx.baseDir) {
@@ -804,6 +810,7 @@ function resolvePickerImageSrc(rawSrc, line, ctx) {
     ctx.errors.push(`line ${line} <ib-option>: local image "${val}" is ${(st.size / (1024 * 1024)).toFixed(2)} MiB (max 2 MiB; resize or compress before inlining)`);
     return "";
   }
+  ctx.inlinedImageBytes += st.size;
   const b64 = readFileSync(fileReal).toString("base64");
   return `data:${mime};base64,${b64}`;
 }
@@ -839,14 +846,20 @@ function renderPicker(attrs, body, offset, src, ctx) {
         clear: "清空",
         copy: attrs["copy-label"] || "复制选择",
         copied: "已复制",
-        fallback: "请直接复制左侧文字",
+        fallback: "已选中，按 ⌘C 复制",
+        emptyCopy: "请先标记选项或填备注",
+        zoom: "⤢ 对比",
+        notePlaceholder: "微调意见（选填，复制时带出）",
         empty:
           mode === "triage"
-            ? "尚未标记：点卡片上的「★ 心仪 / ✕ 排除」，或直接报编号。"
-            : "尚未选择：点卡片上的按钮标记选项，或直接报编号。",
+            ? "尚未标记：点卡片上的「★ 心仪 / ✕ 排除」或填微调意见，再复制汇总。"
+            : "尚未选择：点卡片按钮标记选项或填微调意见，再复制汇总。",
         likePrefix: "心仪：",
         skipPrefix: "排除：",
         selectPrefix: "已选：",
+        notePrefix: "备注：",
+        noteOpen: "（",
+        noteClose: "）",
         itemSep: "、",
         groupSep: " ｜ ",
       }
@@ -858,14 +871,20 @@ function renderPicker(attrs, body, offset, src, ctx) {
         clear: "Clear",
         copy: attrs["copy-label"] || "Copy selection",
         copied: "Copied",
-        fallback: "Select text to copy",
+        fallback: "Selected — press Ctrl/Cmd+C",
+        emptyCopy: "Mark a card or add a note first",
+        zoom: "⤢ Zoom",
+        notePlaceholder: "Short note (optional, included on copy)",
         empty:
           mode === "triage"
-            ? "No selection yet: mark cards with Shortlist / Skip, or reply with option IDs."
-            : "No selection yet: click cards to pick options, or reply with option IDs.",
+            ? "No selection yet: mark cards with Shortlist / Skip or add a note, then copy."
+            : "No selection yet: pick cards or add a note, then copy.",
         likePrefix: "Shortlist: ",
         skipPrefix: "Skip: ",
         selectPrefix: "Selected: ",
+        notePrefix: "Notes: ",
+        noteOpen: " (",
+        noteClose: ")",
         itemSep: ", ",
         groupSep: " | ",
       };
@@ -947,19 +966,22 @@ function renderPicker(attrs, body, offset, src, ctx) {
       </div>`
       : "";
 
+  let hasAnyMedia = false;
   const cardsHtml = parsed
     .map((o) => {
       const hasMedia = Boolean(o.resolvedSrc || o.previewHtml);
+      if (hasMedia) hasAnyMedia = true;
       const fitCls = o.fit === "pixel" ? " ib-fit-pixel" : o.fit === "contain" ? " ib-fit-contain" : "";
       const mediaHtml = hasMedia
         ? `<div class="ib-pick-media">
             ${
               o.resolvedSrc
                 ? `<img class="${fitCls.trim()}" src="${escHtml(o.resolvedSrc)}" alt="${escHtml(o.attrs.alt || o.title)}" />`
-                : `<div class="ib-pick-preview">${o.previewHtml}</div>`
+                : `<div class="ib-pick-preview" data-pick-zoom>${o.previewHtml}</div>`
             }
             <span class="ib-pick-id">${escHtml(o.id)}</span>
             ${o.group ? `<span class="ib-pick-grp">${escHtml(o.group)}</span>` : ""}
+            <button type="button" class="ib-pick-zoom" data-pick-zoom aria-label="${escHtml(ui.zoom)} ${escHtml(o.title)}">${escHtml(ui.zoom)}</button>
           </div>`
         : "";
 
@@ -983,6 +1005,9 @@ function renderPicker(attrs, body, offset, src, ctx) {
           </div>
           ${subHtml}
           ${descHtml}
+          <div class="ib-pick-note-wrap">
+            <input type="text" class="ib-pick-note" data-pick-note placeholder="${escHtml(ui.notePlaceholder)}" aria-label="${escHtml(o.title)} note" />
+          </div>
           <div class="ib-pick-actions">
             ${actionsHtml}
           </div>
@@ -991,8 +1016,38 @@ function renderPicker(attrs, body, offset, src, ctx) {
     })
     .join("\n");
 
+  const dlgBtnsHtml =
+    mode === "triage"
+      ? `<button type="button" class="ib-pick-btn" data-dlg-act="like" aria-pressed="false">${escHtml(ui.like)}</button>
+          <button type="button" class="ib-pick-btn" data-dlg-act="skip" aria-pressed="false">${escHtml(ui.skip)}</button>`
+      : `<button type="button" class="ib-pick-btn" data-dlg-act="select" aria-pressed="false">${escHtml(ui.select)}</button>`;
+
+  const dialogHtml = hasAnyMedia
+    ? `<dialog class="ib-pick-dialog" aria-label="${escHtml(attrs.title || "Compare options")}">
+      <div class="ib-pick-dlg-head">
+        <div class="ib-pick-dlg-title"><span class="ib-pick-id-inline ib-pick-dlg-id"></span><span class="ib-pick-dlg-name"></span></div>
+        <div class="ib-pick-dlg-nav">
+          <button type="button" class="ib-btn" data-dlg-prev aria-label="Previous">←</button>
+          <span class="ib-pick-dlg-pos"></span>
+          <button type="button" class="ib-btn" data-dlg-next aria-label="Next">→</button>
+          <button type="button" class="ib-btn" data-dlg-close aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div class="ib-pick-dlg-stage"></div>
+      <div class="ib-pick-dlg-foot">
+        <div class="ib-pick-dlg-desc"></div>
+        <div class="ib-pick-dlg-controls">
+          <input type="text" class="ib-pick-note" data-dlg-note placeholder="${escHtml(ui.notePlaceholder)}" aria-label="Option note" />
+          <div class="ib-pick-dlg-btns">
+            ${dlgBtnsHtml}
+          </div>
+        </div>
+      </div>
+    </dialog>`
+    : "";
+
   const capHtml = attrs.caption ? `<div class="ib-note">${escHtml(attrs.caption)}</div>` : "";
-  return `<section class="ib-picker" data-mode="${escHtml(mode)}" data-empty-text="${escHtml(ui.empty)}" data-like-prefix="${escHtml(ui.likePrefix)}" data-skip-prefix="${escHtml(ui.skipPrefix)}" data-select-prefix="${escHtml(ui.selectPrefix)}" data-item-sep="${escHtml(ui.itemSep)}" data-group-sep="${escHtml(ui.groupSep)}" data-copied-label="${escHtml(ui.copied)}" data-copy-fallback-label="${escHtml(ui.fallback)}">
+  return `<section class="ib-picker" data-mode="${escHtml(mode)}" data-empty-text="${escHtml(ui.empty)}" data-like-prefix="${escHtml(ui.likePrefix)}" data-skip-prefix="${escHtml(ui.skipPrefix)}" data-select-prefix="${escHtml(ui.selectPrefix)}" data-note-prefix="${escHtml(ui.notePrefix)}" data-note-open="${escHtml(ui.noteOpen)}" data-note-close="${escHtml(ui.noteClose)}" data-item-sep="${escHtml(ui.itemSep)}" data-group-sep="${escHtml(ui.groupSep)}" data-copied-label="${escHtml(ui.copied)}" data-copy-fallback-label="${escHtml(ui.fallback)}" data-copy-empty-label="${escHtml(ui.emptyCopy)}">
     ${headerHtml}
     ${filterBar}
     <div class="ib-pick-grid" style="--ib-pick-cols:${cols}">
@@ -1004,7 +1059,9 @@ function renderPicker(attrs, body, offset, src, ctx) {
         <button type="button" class="ib-btn" data-pick-clear hidden>${escHtml(ui.clear)}</button>
         <button type="button" class="ib-pick-copy" data-pick-copy>${escHtml(ui.copy)}</button>
       </div>
+      <textarea class="ib-pick-fallback" rows="2" readonly hidden aria-label="Selection summary plain text"></textarea>
     </div>
+    ${dialogHtml}
     ${capHtml}
   </section>`;
 }
@@ -1513,6 +1570,7 @@ export function compileSource(src, options = {}) {
     stageFocusChecks: [],
     baseDir: options.baseDir || null,
     lang: "en",
+    inlinedImageBytes: 0,
     stats: {
       srcLines: src.split("\n").length,
       figures: 0,
@@ -1627,9 +1685,20 @@ export function compileSource(src, options = {}) {
       }
     }
   }
+  if (ctx.inlinedImageBytes > MAX_TOTAL_IMAGE_BYTES) {
+    ctx.errors.push(
+      `total inlined images ${(ctx.inlinedImageBytes / (1024 * 1024)).toFixed(2)} MiB raw (~${((ctx.inlinedImageBytes * 4) / (3 * 1024 * 1024)).toFixed(2)} MiB base64) exceed the 6 MiB page budget; resize or convert thumbnails to WebP (<= 640px wide)`
+    );
+  } else if (ctx.inlinedImageBytes > WARN_TOTAL_IMAGE_BYTES) {
+    ctx.warnings.push(
+      `total inlined images ${(ctx.inlinedImageBytes / (1024 * 1024)).toFixed(2)} MiB raw (~${((ctx.inlinedImageBytes * 4) / (3 * 1024 * 1024)).toFixed(2)} MiB base64) may slow inline preview; consider resizing thumbnails to WebP <= 640px`
+    );
+  }
+
   delete ctx.stageFocusChecks;
   delete ctx.baseDir;
   delete ctx.lang;
+  delete ctx.inlinedImageBytes;
 
   const baseCss = readFileSync(resolve(KIT_DIR, "base.css"), "utf8");
   const runtimeJs = readFileSync(resolve(KIT_DIR, "runtime.js"), "utf8");

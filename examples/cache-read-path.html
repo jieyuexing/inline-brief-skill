@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="generator" content="inline-brief 0.2.0" />
+<meta name="generator" content="inline-brief 0.2.1" />
 <title>Cache read path: where the milliseconds go</title>
 <style>
 * { box-sizing: border-box; }
@@ -658,6 +658,33 @@ details.ib-fold pre {
   border: 1px solid var(--border);
 }
 
+.ib-pick-zoom {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 11px;
+  line-height: 1.1;
+  font-family: var(--font-sans, sans-serif);
+  cursor: pointer;
+  opacity: 0.9;
+  transition: border-color 140ms ease, opacity 140ms ease;
+}
+
+.ib-pick-zoom:hover {
+  border-color: var(--info);
+  opacity: 1;
+}
+
+.ib-pick-preview[data-pick-zoom] {
+  cursor: zoom-in;
+}
+
 .ib-pick-body {
   padding: 11px 12px;
   display: flex;
@@ -747,8 +774,34 @@ details.ib-fold pre {
   font-weight: 600;
 }
 
-.ib-pick-actions {
+.ib-pick-note-wrap {
   margin-top: auto;
+  padding-top: 4px;
+}
+
+.ib-pick-note {
+  width: 100%;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--foreground);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-family: var(--font-sans, sans-serif);
+  line-height: 1.3;
+}
+
+.ib-pick-note::placeholder {
+  color: var(--muted-foreground);
+}
+
+.ib-pick-note:focus {
+  outline: none;
+  border-color: var(--ring, var(--info));
+}
+
+.ib-pick-actions {
   padding-top: 6px;
   display: flex;
   gap: 6px;
@@ -838,11 +891,160 @@ details.ib-fold pre {
   opacity: 0.9;
 }
 
+.ib-pick-fallback {
+  width: 100%;
+  flex: 1 0 100%;
+  resize: none;
+  border: 1px solid var(--info);
+  background: var(--secondary);
+  color: var(--foreground);
+  border-radius: calc(var(--radius, 8px) - 2px);
+  padding: 7px 9px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.ib-pick-dialog {
+  width: min(680px, calc(100% - 24px));
+  max-width: 680px;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.ib-pick-dialog::backdrop {
+  background: var(--background);
+  opacity: 0.84;
+}
+
+.ib-pick-dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ib-pick-dlg-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ib-pick-dlg-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ib-pick-dlg-pos {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  min-width: 34px;
+  text-align: center;
+}
+
+.ib-pick-dlg-stage {
+  height: 360px;
+  background: var(--secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.ib-pick-dlg-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.ib-pick-dlg-stage img.ib-fit-pixel {
+  image-rendering: pixelated;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ib-pick-dlg-stage svg {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ib-pick-dlg-foot {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ib-pick-dlg-desc {
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+
+.ib-pick-dlg-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ib-pick-dlg-controls .ib-pick-note {
+  flex: 1 1 220px;
+}
+
+.ib-pick-dlg-btns {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ib-pick-dlg-btns .ib-pick-btn {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+}
+
+.ib-pick-dlg-btns .ib-pick-btn.is-active-like,
+.ib-pick-dlg-btns .ib-pick-btn.is-active-select {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--card);
+  font-weight: 700;
+}
+
+.ib-pick-dlg-btns .ib-pick-btn.is-active-skip {
+  background: var(--destructive);
+  border-color: var(--destructive);
+  color: var(--card);
+  font-weight: 700;
+}
+
 @media (max-width: 560px) {
   .ib-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ib-grid-2, .ib-lanes, .ib-pick-grid { grid-template-columns: 1fr; }
   .ib-bar-row { grid-template-columns: minmax(112px, 140px) 1fr auto; }
   .ib-flow-svg { min-width: 540px; }
+  .ib-pick-dlg-stage { height: 240px; }
 }
 
 </style>
@@ -1124,7 +1326,7 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
   });
 
   document.addEventListener("click", (e) => {
-    if (e.target && e.target.closest && e.target.closest(".ib-stepper-btns, .ib-pick-actions, .ib-pick-filters, .ib-pick-bar-btns")) return;
+    if (e.target && e.target.closest && e.target.closest(".ib-stepper-btns, .ib-pick-actions, .ib-pick-filters, .ib-pick-bar-btns, .ib-pick-note-wrap, .ib-pick-zoom, .ib-pick-preview, .ib-pick-dialog, .ib-pick-fallback")) return;
     const el = e.target && e.target.closest ? e.target.closest("[data-focus]") : null;
     if (!el) return;
     const keys = parseKeys(el.getAttribute("data-focus"));
@@ -1230,30 +1432,46 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
     const sumEl = root.querySelector(".ib-pick-summary");
     const copyBtn = root.querySelector("[data-pick-copy]");
     const clearBtn = root.querySelector("[data-pick-clear]");
+    const fallbackEl = root.querySelector(".ib-pick-fallback");
+    const dialog = root.querySelector(".ib-pick-dialog");
     const state = new Map();
+    const notes = new Map();
 
     const emptyText = root.dataset.emptyText || "Click cards above to mark your choices.";
     const likePrefix = root.dataset.likePrefix || "Shortlist: ";
     const skipPrefix = root.dataset.skipPrefix || "Skip: ";
     const selectPrefix = root.dataset.selectPrefix || "Selected: ";
+    const notePrefix = root.dataset.notePrefix || "Notes: ";
+    const noteOpen = root.dataset.noteOpen || " (";
+    const noteClose = root.dataset.noteClose || ")";
     const itemSep = root.dataset.itemSep || ", ";
     const groupSep = root.dataset.groupSep || " | ";
     const copyDefault = copyBtn ? copyBtn.textContent : "Copy selection";
     const copiedLabel = root.dataset.copiedLabel || "Copied";
-    const copyFallbackLabel = root.dataset.copyFallbackLabel || "Select text to copy";
+    const copyFallbackLabel = root.dataset.copyFallbackLabel || "Selected — press Ctrl/Cmd+C";
+    const copyEmptyLabel = root.dataset.copyEmptyLabel || "Pick a card first";
+
+    function formatLabel(card) {
+      const id = card.dataset.optId || "";
+      const title = card.dataset.optTitle || "";
+      const base = title ? `${id} ${title}` : id;
+      const note = (notes.get(id) || "").trim();
+      return note ? `${base}${noteOpen}${note}${noteClose}` : base;
+    }
 
     function formatSummary() {
       const liked = [];
       const skipped = [];
       const selected = [];
+      const standaloneNotes = [];
       for (const c of cards) {
         const id = c.dataset.optId || "";
-        const title = c.dataset.optTitle || "";
-        const label = title ? `${id} ${title}` : id;
         const st = state.get(id);
-        if (st === "like") liked.push(label);
-        else if (st === "skip") skipped.push(label);
-        else if (st === "select") selected.push(label);
+        const note = (notes.get(id) || "").trim();
+        if (st === "like") liked.push(formatLabel(c));
+        else if (st === "skip") skipped.push(formatLabel(c));
+        else if (st === "select") selected.push(formatLabel(c));
+        else if (note) standaloneNotes.push(formatLabel(c));
       }
       const parts = [];
       if (mode === "triage") {
@@ -1261,6 +1479,9 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
         if (skipped.length) parts.push(`${skipPrefix}${skipped.join(itemSep)}`);
       } else if (selected.length) {
         parts.push(`${selectPrefix}${selected.join(itemSep)}`);
+      }
+      if (standaloneNotes.length) {
+        parts.push(`${notePrefix}${standaloneNotes.join(itemSep)}`);
       }
       return parts.join(groupSep);
     }
@@ -1274,6 +1495,39 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
       card.querySelectorAll("[data-pick-act]").forEach((btn) => {
         btn.setAttribute("aria-pressed", btn.dataset.pickAct === st ? "true" : "false");
       });
+      const noteInput = card.querySelector("[data-pick-note]");
+      const val = notes.get(id) || "";
+      if (noteInput && noteInput.value !== val) {
+        noteInput.value = val;
+      }
+    }
+
+    function applyAction(card, act) {
+      const id = card.dataset.optId || "";
+      const prev = state.get(id) || null;
+      if (mode === "single") {
+        state.clear();
+        if (prev !== act) state.set(id, act);
+        cards.forEach(syncCardDom);
+      } else {
+        const next = prev === act ? null : act;
+        if (next) state.set(id, next);
+        else state.delete(id);
+        syncCardDom(card);
+      }
+      renderSummary();
+      if (dialogState.activeCard) syncDialogControls();
+    }
+
+    function setNote(card, text) {
+      const id = card.dataset.optId || "";
+      if (text && text.trim()) notes.set(id, text);
+      else notes.delete(id);
+      syncCardDom(card);
+      renderSummary();
+      if (dialogState.activeCard === card && dialogState.noteEl && dialogState.noteEl.value !== text) {
+        dialogState.noteEl.value = text;
+      }
     }
 
     function renderSummary() {
@@ -1284,6 +1538,140 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
       }
       if (clearBtn) {
         clearBtn.hidden = !text;
+      }
+      if (fallbackEl) {
+        if (!text) {
+          fallbackEl.hidden = true;
+          fallbackEl.value = "";
+        } else if (!fallbackEl.hidden) {
+          fallbackEl.value = text;
+        }
+      }
+    }
+
+    // Zoom & A/B compare dialog state
+    const dialogState = {
+      activeCard: null,
+      idEl: dialog ? dialog.querySelector(".ib-pick-dlg-id") : null,
+      titleEl: dialog ? dialog.querySelector(".ib-pick-dlg-name") : null,
+      posEl: dialog ? dialog.querySelector(".ib-pick-dlg-pos") : null,
+      stageEl: dialog ? dialog.querySelector(".ib-pick-dlg-stage") : null,
+      descEl: dialog ? dialog.querySelector(".ib-pick-dlg-desc") : null,
+      noteEl: dialog ? dialog.querySelector("[data-dlg-note]") : null,
+      prevBtn: dialog ? dialog.querySelector("[data-dlg-prev]") : null,
+      nextBtn: dialog ? dialog.querySelector("[data-dlg-next]") : null,
+      closeBtn: dialog ? dialog.querySelector("[data-dlg-close]") : null,
+      actBtns: dialog ? Array.from(dialog.querySelectorAll("[data-dlg-act]")) : [],
+    };
+
+    function visibleMediaCards() {
+      return cards.filter((c) => !c.hidden && c.querySelector(".ib-pick-media"));
+    }
+
+    function syncDialogControls() {
+      const card = dialogState.activeCard;
+      if (!card) return;
+      const id = card.dataset.optId || "";
+      const st = state.get(id) || null;
+      dialogState.actBtns.forEach((btn) => {
+        const act = btn.dataset.dlgAct;
+        const on = st === act;
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+        btn.classList.toggle("is-active-like", on && act === "like");
+        btn.classList.toggle("is-active-skip", on && act === "skip");
+        btn.classList.toggle("is-active-select", on && act === "select");
+      });
+      if (dialogState.noteEl) {
+        const val = notes.get(id) || "";
+        if (dialogState.noteEl.value !== val) dialogState.noteEl.value = val;
+      }
+    }
+
+    function showDialogCard(card) {
+      if (!dialog || !card) return;
+      const list = visibleMediaCards();
+      const idx = Math.max(0, list.indexOf(card));
+      dialogState.activeCard = card;
+      if (dialogState.idEl) dialogState.idEl.textContent = card.dataset.optId || "";
+      if (dialogState.titleEl) dialogState.titleEl.textContent = card.dataset.optTitle || "";
+      if (dialogState.posEl) dialogState.posEl.textContent = list.length ? `${idx + 1}/${list.length}` : "";
+      if (dialogState.stageEl) {
+        const img = card.querySelector(".ib-pick-media img");
+        const preview = card.querySelector(".ib-pick-preview");
+        if (img) {
+          const isPixel = img.classList.contains("ib-fit-pixel");
+          dialogState.stageEl.innerHTML = "";
+          if (typeof document.createElement === "function" && typeof dialogState.stageEl.appendChild === "function") {
+            const clone = document.createElement("img");
+            clone.src = img.getAttribute("src") || "";
+            clone.alt = img.getAttribute("alt") || "";
+            if (isPixel) clone.className = "ib-fit-pixel";
+            dialogState.stageEl.appendChild(clone);
+          } else {
+            dialogState.stageEl.innerHTML = `<img src="${img.getAttribute("src") || ""}" alt="${img.getAttribute("alt") || ""}"${isPixel ? ' class="ib-fit-pixel"' : ""} />`;
+          }
+        } else if (preview) {
+          dialogState.stageEl.innerHTML = preview.innerHTML;
+        } else {
+          dialogState.stageEl.innerHTML = "";
+        }
+      }
+      if (dialogState.descEl) {
+        const sub = card.querySelector(".ib-pick-sub");
+        dialogState.descEl.textContent = sub ? sub.textContent : "";
+      }
+      syncDialogControls();
+      if (!dialog.open) {
+        if (typeof dialog.showModal === "function") dialog.showModal();
+        else dialog.setAttribute("open", "");
+      }
+    }
+
+    function stepDialog(delta) {
+      const list = visibleMediaCards();
+      if (!list.length || !dialogState.activeCard) return;
+      const cur = list.indexOf(dialogState.activeCard);
+      const next = list[(cur + delta + list.length) % list.length];
+      showDialogCard(next);
+    }
+
+    if (dialog) {
+      if (dialogState.prevBtn) dialogState.prevBtn.addEventListener("click", () => stepDialog(-1));
+      if (dialogState.nextBtn) dialogState.nextBtn.addEventListener("click", () => stepDialog(1));
+      if (dialogState.closeBtn) {
+        dialogState.closeBtn.addEventListener("click", () => {
+          if (typeof dialog.close === "function") dialog.close();
+          else dialog.removeAttribute("open");
+          dialogState.activeCard = null;
+        });
+      }
+      dialog.addEventListener("click", (e) => {
+        if (e.target === dialog) {
+          if (typeof dialog.close === "function") dialog.close();
+          else dialog.removeAttribute("open");
+          dialogState.activeCard = null;
+        }
+      });
+      dialog.addEventListener("keydown", (e) => {
+        const tag = e.target && e.target.tagName ? e.target.tagName.toUpperCase() : "";
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        if (e.key === "ArrowLeft") {
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          stepDialog(-1);
+        } else if (e.key === "ArrowRight") {
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          stepDialog(1);
+        }
+      });
+      dialogState.actBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (dialogState.activeCard) applyAction(dialogState.activeCard, btn.dataset.dlgAct);
+        });
+      });
+      if (dialogState.noteEl) {
+        dialogState.noteEl.addEventListener("input", () => {
+          if (dialogState.activeCard) setNote(dialogState.activeCard, dialogState.noteEl.value);
+        });
       }
     }
 
@@ -1303,29 +1691,23 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
 
     cards.forEach((card) => {
       card.querySelectorAll("[data-pick-act]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const id = card.dataset.optId || "";
-          const act = btn.dataset.pickAct;
-          const prev = state.get(id) || null;
-          if (mode === "single") {
-            state.clear();
-            if (prev !== act) state.set(id, act);
-            cards.forEach(syncCardDom);
-          } else {
-            const next = prev === act ? null : act;
-            if (next) state.set(id, next);
-            else state.delete(id);
-            syncCardDom(card);
-          }
-          renderSummary();
-        });
+        btn.addEventListener("click", () => applyAction(card, btn.dataset.pickAct));
+      });
+      const noteInput = card.querySelector("[data-pick-note]");
+      if (noteInput) {
+        noteInput.addEventListener("input", () => setNote(card, noteInput.value));
+      }
+      card.querySelectorAll("[data-pick-zoom]").forEach((el) => {
+        el.addEventListener("click", () => showDialogCard(card));
       });
     });
 
     if (clearBtn) {
       clearBtn.addEventListener("click", () => {
         state.clear();
+        notes.clear();
         cards.forEach(syncCardDom);
+        if (dialogState.activeCard) syncDialogControls();
         renderSummary();
       });
     }
@@ -1338,12 +1720,12 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
         resetTimer = setTimeout(() => {
           copyBtn.textContent = copyDefault;
           resetTimer = null;
-        }, 1400);
+        }, 1600);
       };
       copyBtn.addEventListener("click", async () => {
         const text = formatSummary();
         if (!text) {
-          flashLabel(copyFallbackLabel);
+          flashLabel(copyEmptyLabel);
           return;
         }
         let copied = false;
@@ -1370,7 +1752,19 @@ for i in $(seq 200); do curl -s -o /dev/null -w "%{time_total}\n" localhost:8080
             copied = false;
           }
         }
-        flashLabel(copied ? copiedLabel : copyFallbackLabel);
+        if (copied) {
+          if (fallbackEl) fallbackEl.hidden = true;
+          flashLabel(copiedLabel);
+          return;
+        }
+        // Sandbox fallback: reveal and auto-select plain-text box for one-shortcut manual copy
+        if (fallbackEl) {
+          fallbackEl.value = text;
+          fallbackEl.hidden = false;
+          if (typeof fallbackEl.focus === "function") fallbackEl.focus();
+          if (typeof fallbackEl.select === "function") fallbackEl.select();
+        }
+        flashLabel(copyFallbackLabel);
       });
     }
 

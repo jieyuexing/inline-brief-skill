@@ -9,7 +9,7 @@
       "name": "inline-brief-skill",
       "source": "./",
       "description": "Turn evidence into interactive, theme-native inline visuals for T3 Code's html_render. Zero dependencies. Unofficial community skill.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "repository": "https://github.com/jieyuexing/inline-brief-skill",
       "license": "MIT",
       "keywords": ["skill", "t3-code", "html-render", "visualization"]

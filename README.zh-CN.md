@@ -74,7 +74,7 @@ Claude Code 也可作为插件安装：`/plugin marketplace add jieyuexing/inlin
 | `<ib-flow>` / `<ib-node>` / `<ib-edge>` | 网格定位、自动布线的流程图，支持带标签连线与回退连线 |
 | `<ib-lanes>` / `<ib-lane>` / `<ib-step>` | 顺序泳道，步骤类型 `action`、`gate`、`break` |
 | `<ib-stepper>` / `<ib-stage>` | 分步播放器，按 `focus` 键联动高亮 |
-| `<ib-picker>` / `<ib-option>` / `<ib-preview>` | 可视化筛选确认面板（`triage` / `multi` / `single`），自动分组过滤、本地图片编译期内联、一键复制选择结果 |
+| `<ib-picker>` / `<ib-option>` / `<ib-preview>` | 可视化筛选确认面板（`triage` / `multi` / `single`），自动分组过滤、点击放大左右对比、单卡微调备注、带总体积预算的本地图片内联、一键复制及沙箱纯文本兜底 |
 | `<ib-grid>`、`<ib-details>` | 双栏容器、折叠参考块 |
 
 `<ib-trend>` 示例：

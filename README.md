@@ -93,7 +93,7 @@ Claude Code can also install it as a plugin: `/plugin marketplace add jieyuexing
 | `<ib-flow>` / `<ib-node>` / `<ib-edge>` | grid-placed, auto-routed diagram with labeled and back edges |
 | `<ib-lanes>` / `<ib-lane>` / `<ib-step>` | sequential swimlanes with `action`, `gate`, `break` steps |
 | `<ib-stepper>` / `<ib-stage>` | step-through player that highlights elements by `focus` key |
-| `<ib-picker>` / `<ib-option>` / `<ib-preview>` | interactive visual confirmation board (`triage` / `multi` / `single`), auto group filters, safe local image inlining, 1-click copyable selection summary |
+| `<ib-picker>` / `<ib-option>` / `<ib-preview>` | interactive visual confirmation board (`triage` / `multi` / `single`), auto group filters, zoom & A/B compare dialog, per-card short notes, budgeted local image inlining, copyable summary with plain-text fallback |
 | `<ib-grid>`, `<ib-details>` | two-column wrapper, folded reference block |
 
 Full attribute reference: [`components.md`](skills/inline-brief/references/components.md).
