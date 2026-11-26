@@ -68,16 +68,6 @@ That uses the [`npx skills`](https://github.com/vercel-labs/skills) CLI, which i
 </details>
 
 <details>
-<summary>Codex plugin</summary>
-
-```bash
-codex plugin marketplace add jieyuexing/inline-brief-skill
-codex plugin add inline-brief-skill@inline-brief-skill
-```
-
-</details>
-
-<details>
 <summary>Copy the skill by hand</summary>
 
 Copy `skills/inline-brief/` into the skill directory your agent reads, or clone and symlink it. Under T3 Code each provider reads its own location:
@@ -96,7 +86,7 @@ mkdir -p .agents/skills && cp -R inline-brief-skill/skills/inline-brief .agents/
 
 </details>
 
-The repository also ships manifests for Cursor (`.cursor-plugin/plugin.json`), Gemini CLI (`gemini-extension.json`) and [Agent Plugins 1.0](https://agent-plugins.org) (`plugin.json`). Skill paths vary by agent version; check your agent's documentation if the skill is not discovered.
+The repository also ships an [Agent Plugins 1.0](https://agent-plugins.org) `plugin.json`. Skill paths vary by agent version; check your agent's documentation if the skill is not discovered.
 
 ## DSL at a glance
 

@@ -78,10 +78,6 @@ export const MANIFESTS = [
   "plugin.json",
   ".claude-plugin/plugin.json",
   ".claude-plugin/marketplace.json",
-  ".codex-plugin/plugin.json",
-  ".cursor-plugin/plugin.json",
-  "gemini-extension.json",
-  ".agents/plugins/marketplace.json",
 ];
 
 /** Every distribution manifest parses, agrees on name and version, and points at real paths. */

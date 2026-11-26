@@ -69,16 +69,6 @@ npx skills add jieyuexing/inline-brief-skill
 </details>
 
 <details>
-<summary>Codex 插件</summary>
-
-```bash
-codex plugin marketplace add jieyuexing/inline-brief-skill
-codex plugin add inline-brief-skill@inline-brief-skill
-```
-
-</details>
-
-<details>
 <summary>手动复制 Skill</summary>
 
 把 `skills/inline-brief/` 复制到你的 Agent 读取的 skill 目录，或克隆后建立软链接。在 T3 Code 下各提供方读取各自目录：
@@ -97,7 +87,7 @@ mkdir -p .agents/skills && cp -R inline-brief-skill/skills/inline-brief .agents/
 
 </details>
 
-仓库同时带有 Cursor（`.cursor-plugin/plugin.json`）、Gemini CLI（`gemini-extension.json`）与 [Agent Plugins 1.0](https://agent-plugins.org)（`plugin.json`）的清单。各 Agent 版本的 skill 路径可能变化，若未被发现请查阅对应文档。
+仓库同时带有 [Agent Plugins 1.0](https://agent-plugins.org) 规范的 `plugin.json`。各 Agent 版本的 skill 路径可能变化，若未被发现请查阅对应文档。
 
 ## DSL 速览
 

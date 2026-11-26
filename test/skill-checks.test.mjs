@@ -63,15 +63,15 @@ test("manifest checker catches version drift, broken paths and double-loaded Cla
       fn(j);
       writeFileSync(p, JSON.stringify(j));
     };
-    edit("gemini-extension.json", (j) => { j.version = "9.9.9"; });
-    edit(".codex-plugin/plugin.json", (j) => { j.skills = "./skillz/"; });
+    edit("plugin.json", (j) => { j.version = "9.9.9"; });
+    edit("package.json", (j) => { j.bin["inline-brief"] = "skills/inline-brief/scripts/missing.mjs"; });
     edit(".claude-plugin/marketplace.json", (j) => { j.plugins[0].skills = ["./skills/inline-brief"]; });
-    writeFileSync(join(dir, ".cursor-plugin/plugin.json"), "{ not json");
+    writeFileSync(join(dir, ".claude-plugin/plugin.json"), "{ not json");
     const problems = manifestProblems(dir, VERSION).join("\n");
-    assert.match(problems, /gemini-extension\.json: version 9\.9\.9/);
-    assert.match(problems, /\.codex-plugin\/plugin\.json: skills path \.\/skillz\/ does not exist/);
+    assert.match(problems, /plugin\.json: version 9\.9\.9/);
+    assert.match(problems, /package\.json: bin skills\/inline-brief\/scripts\/missing\.mjs does not exist/);
     assert.match(problems, /each would load twice/);
-    assert.match(problems, /\.cursor-plugin\/plugin\.json: invalid JSON/);
+    assert.match(problems, /\.claude-plugin\/plugin\.json: invalid JSON/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

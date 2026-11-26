@@ -20,7 +20,7 @@ Traps `inline-brief` has hit or is easy to hit, and what avoids them. Check this
 ## Packaging
 
 - **Strict YAML frontmatter.** Claude Code, Codex, Cursor and Gemini CLI parse `SKILL.md` frontmatter strictly and silently skip a skill that fails. An unquoted value containing `: ` or ` #` is enough: quote it. `name` must equal the folder name and `description` stays within 1024 characters (repository `test/skill-checks.test.mjs`).
-- **One version, many manifests.** `VERSION` in `compile.mjs` is the source; `package.json`, `plugin.json`, `.claude-plugin/*`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `gemini-extension.json` must match it.
+- **One version, four manifests.** `VERSION` in `compile.mjs` is the source; `package.json`, `plugin.json`, `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` must match it.
 - **Do not list `skills` on a `source: "./"` marketplace entry.** Claude Code already discovers `skills/`; listing them again loads each skill twice.
 
 ## Repository browser tooling (top-level `scripts/`, not the skill's `scripts/`)

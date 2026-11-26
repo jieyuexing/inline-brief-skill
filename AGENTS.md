@@ -31,18 +31,17 @@ Guidance for coding agents that install or use this repository. Humans: see [REA
 ## Repository layout
 
 ```
-skills/inline-brief/   SKILL.md, references/ (incl. lessons.md), kit/ (base.css, runtime.js), scripts/compile.mjs, agents/openai.yaml
+skills/inline-brief/   SKILL.md, references/ (incl. lessons.md), kit/ (base.css, runtime.js), scripts/compile.mjs
 examples/              three demo sources (flow, audit, visual picker) and their compiled pages
 test/                  node:test suites (no dependencies): compiler, generative, skill/manifest checks
 scripts/               repository tooling only: browser smoke test, README clip recorder, T3 theme snapshot
-.codex-plugin/ .cursor-plugin/ .agents/plugins/ gemini-extension.json   per-agent plugin manifests
 ```
 
 ## Develop
 
 - Test: `node --test test/*.test.mjs`
 - Rebuild committed examples after changing the compiler or kit: `npm run build:examples` (CI fails if `examples/*.html` are stale).
-- Release: bump `VERSION` in `compile.mjs` and the seven manifests (`package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `gemini-extension.json`) together; the test suite fails on any mismatch. `.agents/plugins/marketplace.json` (Codex marketplace) carries no version.
+- Release: bump `VERSION` in `compile.mjs` and the four manifests (`package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`) together; the test suite fails on any mismatch.
 - Browser checks (optional, need Python Playwright + Chromium, and Pillow for clips): `python3 scripts/smoke-browser.py` clicks every control of the compiled examples at 728 dark/light and 390 dark; `python3 scripts/record-demos.py` re-records the README clips in `docs/images/`. Both live outside `skills/` and are not published.
 - Keep `compile.mjs` dependency-free and add a failing sample test for every new static check.
 
