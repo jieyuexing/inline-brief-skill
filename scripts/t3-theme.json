@@ -1,5 +1,5 @@
 {
-  "_source": "T3 Code default html_render theme: htmlRenderTheme(T3_CODE_DARK/LIGHT_THEME_COLORS) and BASE_CSS in packages/shared/src/htmlRender.ts (t3code-cn fork 1931b874e2, 2026-11-26). Used only by scripts/ to preview pages the way html_render injects them.",
+  "_source": "T3 Code default html_render theme: htmlRenderTheme(T3_CODE_DARK/LIGHT_THEME_COLORS) and BASE_CSS in packages/shared/src/htmlRender.ts and themePalettes.ts in pingdotgg/t3code (main at eaa3f7da13, 2026-11-24). Used only by scripts/ to preview pages the way html_render injects them.",
   "baseCss": "html{box-sizing:border-box;padding:8px;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}:where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}:where(img:not(a[href] img,button img)){cursor:zoom-in}",
   "dark": {
     "--background": "#0a0a0a",

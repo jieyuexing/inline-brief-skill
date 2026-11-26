@@ -1,6 +1,6 @@
 # Lessons
 
-Traps that already broke `inline-brief` pages or tooling, and what fixed them. Check this list before adding a component or a gate.
+Traps `inline-brief` has hit or is easy to hit, and what avoids them. Check this list before adding a component or a gate. Paths under `test/` and the repository-level `scripts/` exist only in the source repository, not in an installed skill.
 
 ## Page and host
 
@@ -15,16 +15,16 @@ Traps that already broke `inline-brief` pages or tooling, and what fixed them. C
 
 - **Entities decode once.** `&amp;lt;` must stay the literal text `&lt;`; decoding it twice turned it into `<`. Decode in a single regex pass.
 - **Attribute values may hold `<` and `>`.** HTML allows `label="a > b"`, but regex tag scanners read `"<style>"` inside a value as markup. Encode brackets inside quoted values before scanning and keep newlines in place so error line numbers still match the source.
-- **Every new static check ships with a sample that fails** on the old compiler first (`test/compile.test.mjs`).
+- **Every new static check ships with a sample that fails** on the old compiler first (repository `test/compile.test.mjs`).
 
 ## Packaging
 
-- **Strict YAML frontmatter.** Claude Code, Codex, Cursor and Gemini CLI parse `SKILL.md` frontmatter strictly and silently skip a skill that fails. An unquoted value containing `: ` or ` #` is enough: quote it. `name` must equal the folder name and `description` stays within 1024 characters (`test/skill-checks.test.mjs`).
+- **Strict YAML frontmatter.** Claude Code, Codex, Cursor and Gemini CLI parse `SKILL.md` frontmatter strictly and silently skip a skill that fails. An unquoted value containing `: ` or ` #` is enough: quote it. `name` must equal the folder name and `description` stays within 1024 characters (repository `test/skill-checks.test.mjs`).
 - **One version, many manifests.** `VERSION` in `compile.mjs` is the source; `package.json`, `plugin.json`, `.claude-plugin/*`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `gemini-extension.json` must match it.
 - **Do not list `skills` on a `source: "./"` marketplace entry.** Claude Code already discovers `skills/`; listing them again loads each skill twice.
 
-## Browser tooling (`scripts/`)
+## Repository browser tooling (top-level `scripts/`, not the skill's `scripts/`)
 
-- **A virtual clock must cover `setInterval`.** The stepper's Play uses `setInterval`; freezing only `setTimeout` and `requestAnimationFrame` leaves it running on wall time and the recording drifts.
+- **A virtual clock must cover `setInterval`.** The stepper's Play uses `setInterval`; freezing only `setTimeout` and `requestAnimationFrame` would leave it on wall time and the recording would drift.
 - **Nothing sits above a modal `<dialog>`.** `showModal()` puts it in the top layer, over any `z-index`. Draw a recording cursor onto the screenshots, not into the page.
-- **Headless Chromium can copy.** Without a sandbox the clipboard call succeeds and the fallback never shows; deny it in an init script to test what T3 users see.
+- **Headless Chromium can copy.** Outside the sandbox the copy succeeds (the button says `Copied`) and the fallback never shows; deny the clipboard in an init script to test what T3 users see.
