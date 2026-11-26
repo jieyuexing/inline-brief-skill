@@ -7,7 +7,9 @@
 
 [English](README.md) · [Skill](skills/inline-brief/SKILL.md) · [组件参考](skills/inline-brief/references/components.md) · [`html_render` 合同](skills/inline-brief/references/t3-contract.md)
 
-![inline-brief-skill：约 55 行语义化 DSL 编译为 T3 Code 原生主题交互图文](docs/images/hero-pipeline.png)
+![光标在 T3 Code 线程里操作 <ib-picker> 选型板：按分组筛选、心仪一张卡并排除另一张、打开放大弹窗切到下一项、输入简短备注，最后复制汇总并弹出已全选的纯文本兜底框](docs/images/picker-demo.webp)
+
+<sub>由编译后的 [`visual-direction-picker.html`](examples/visual-direction-picker.html) 在无头 Chromium 中实录：注入 T3 自己的主题变量并模拟沙箱剪贴板，每次点击都是真实鼠标事件（`scripts/record-demos.py`）。</sub>
 
 ## 直接交给你的 Agent
 
@@ -30,9 +32,13 @@
 - **原生主题**：产物只使用 T3 的 CSS 变量（`--card`、`--border`、`--chart-1`、`--info` 等），亮色、暗色与自定义主题自动同步。
 - **零依赖**：单个 Node >= 20 ES 模块，无需安装，无需联网，产物不含任何外链或外部嵌入（仅放行 `data:` 与页内 `#id`）。
 
+![inline-brief-skill：约 55 行语义化 DSL 编译为 T3 Code 原生主题交互图文](docs/images/hero-pipeline.png)
+
 ## 示例
 
-![使用 <ib-picker> 在线程内直接做可视化筛选确认：分组过滤、本地图片与 SVG 线框卡片、心仪/排除点选与一键复制结果](docs/images/visual-picker.png)
+![光标用 <ib-stepper> 的下一步与播放逐步推进，流程图节点、回退连线与泳道步骤同步高亮；悬停 Postgres 节点跨图点亮对应泳道步骤；随后 T3 主题从暗色切到亮色，页面随之变化](docs/images/stepper-flow-demo.webp)
+
+<sub>[`cache-read-path.html`](examples/cache-read-path.html)：步进器同时驱动流程图与泳道，悬停任一节点会在所有图里高亮同一个键，切换主题只是替换宿主注入的 CSS 变量。</sub>
 
 ![同一份编译产物在暗色 728px、亮色 728px 与手机 390px 下的原生主题自适应](docs/images/themes-qa.png)
 
@@ -45,6 +51,35 @@
 示例中的全部数字与插图均为原创演示样例。
 
 ## 安装
+
+```bash
+npx skills add jieyuexing/inline-brief-skill
+```
+
+这条命令使用 [`npx skills`](https://github.com/vercel-labs/skills) CLI，会把 `skills/inline-brief/` 装到 Claude Code、Codex、Cursor、Gemini CLI、OpenCode 等 Agent。装完新开一个 Agent 会话即可。无需其他依赖，编译器零依赖（Node >= 20）。
+
+<details>
+<summary>Claude Code 插件</summary>
+
+```
+/plugin marketplace add jieyuexing/inline-brief-skill
+/plugin install inline-brief-skill@inline-brief-skill
+```
+
+</details>
+
+<details>
+<summary>Codex 插件</summary>
+
+```bash
+codex plugin marketplace add jieyuexing/inline-brief-skill
+codex plugin add inline-brief-skill@inline-brief-skill
+```
+
+</details>
+
+<details>
+<summary>手动复制 Skill</summary>
 
 把 `skills/inline-brief/` 复制到你的 Agent 读取的 skill 目录，或克隆后建立软链接。在 T3 Code 下各提供方读取各自目录：
 
@@ -60,7 +95,9 @@ mkdir -p .claude/skills && cp -R inline-brief-skill/skills/inline-brief .claude/
 mkdir -p .agents/skills && cp -R inline-brief-skill/skills/inline-brief .agents/skills/   # Codex / Antigravity
 ```
 
-Claude Code 也可作为插件安装：`/plugin marketplace add jieyuexing/inline-brief-skill`，再 `/plugin install inline-brief-skill@inline-brief-skill`。仓库同时带有 [Agent Plugins 1.0](https://agent-plugins.org) 的 `plugin.json`。各 Agent 版本的 skill 路径可能变化，若未被发现请查阅对应文档。
+</details>
+
+仓库同时带有 Cursor（`.cursor-plugin/plugin.json`）、Gemini CLI（`gemini-extension.json`）与 [Agent Plugins 1.0](https://agent-plugins.org)（`plugin.json`）的清单。各 Agent 版本的 skill 路径可能变化，若未被发现请查阅对应文档。
 
 ## DSL 速览
 
@@ -113,6 +150,10 @@ node skills/inline-brief/scripts/compile.mjs examples/cache-read-path.src.html -
 
 # 测试（Node >= 20，无需安装依赖）
 node --test test/*.test.mjs
+
+# 可选的浏览器检查（需 Python Playwright + Chromium；录动图另需 Pillow）
+python3 scripts/smoke-browser.py    # 在暗色/亮色 728px 与暗色 390px 下点遍所有控件
+python3 scripts/record-demos.py     # 重录 docs/images/*-demo.webp
 ```
 
 在 T3 Code 中，Agent 随后用 `html_preview` 做三态预览（暗色 728px、亮色 728px、暗色 390px），确认 `consoleMessages` 为空，再用编译产物调用 `html_render`。详见 [`SKILL.md`](skills/inline-brief/SKILL.md)。

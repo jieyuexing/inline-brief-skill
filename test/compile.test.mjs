@@ -644,6 +644,9 @@ test("distribution manifests share name, version, license, repository, unofficia
   const claudePlugin = JSON.parse(readFileSync(join(ROOT, ".claude-plugin/plugin.json"), "utf8"));
   const marketplace = JSON.parse(readFileSync(join(ROOT, ".claude-plugin/marketplace.json"), "utf8"));
   const marketPlugin = marketplace.plugins[0];
+  const codexPlugin = JSON.parse(readFileSync(join(ROOT, ".codex-plugin/plugin.json"), "utf8"));
+  const cursorPlugin = JSON.parse(readFileSync(join(ROOT, ".cursor-plugin/plugin.json"), "utf8"));
+  const gemini = JSON.parse(readFileSync(join(ROOT, "gemini-extension.json"), "utf8"));
 
   const normRepo = (r) => (typeof r === "string" ? r : r?.url || "").replace(/^git\+/, "").replace(/\.git$/, "");
   const manifests = [
@@ -651,6 +654,8 @@ test("distribution manifests share name, version, license, repository, unofficia
     ["plugin.json", rootPlugin],
     [".claude-plugin/plugin.json", claudePlugin],
     [".claude-plugin/marketplace.json#plugins[0]", marketPlugin],
+    [".codex-plugin/plugin.json", codexPlugin],
+    [".cursor-plugin/plugin.json", cursorPlugin],
   ];
 
   assert.equal(pkg.version, VERSION, "package.json version must match compile.mjs VERSION");
@@ -664,6 +669,10 @@ test("distribution manifests share name, version, license, repository, unofficia
     assert.equal(normRepo(m.repository), normRepo(pkg.repository), `${label} repository mismatch`);
     assert.match(m.description, /Unofficial community skill/i, `${label} missing unofficial notice`);
   }
+
+  assert.equal(gemini.name, pkg.name, "gemini-extension.json name mismatch");
+  assert.equal(gemini.version, pkg.version, "gemini-extension.json version mismatch");
+  assert.match(gemini.description, /Unofficial community skill/i, "gemini-extension.json missing unofficial notice");
 
   const compiled = compileSource(page(`<p>hello</p>`));
   assert.match(compiled.html, new RegExp(`<meta name="generator" content="inline-brief ${pkg.version.replace(".", "\\.")}" />`));

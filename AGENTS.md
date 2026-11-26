@@ -6,6 +6,8 @@ Guidance for coding agents that install or use this repository. Humans: see [REA
 
 ## Install
 
+`npx skills add jieyuexing/inline-brief-skill` installs it for every supported agent. Or:
+
 1. Copy `skills/inline-brief/` (the whole directory) into the skill directory your agent reads:
    - Claude Code: `.claude/skills/inline-brief/` or `~/.claude/skills/inline-brief/`
    - Codex and Antigravity: `.agents/skills/inline-brief/` in the project
@@ -29,18 +31,21 @@ Guidance for coding agents that install or use this repository. Humans: see [REA
 ## Repository layout
 
 ```
-skills/inline-brief/   SKILL.md, references/, kit/ (base.css, runtime.js), scripts/compile.mjs
+skills/inline-brief/   SKILL.md, references/ (incl. lessons.md), kit/ (base.css, runtime.js), scripts/compile.mjs, agents/openai.yaml
 examples/              three demo sources (flow, audit, visual picker) and their compiled pages
-test/compile.test.mjs  node:test suite (no dependencies)
+test/                  node:test suites (no dependencies): compiler, generative, skill/manifest checks
+scripts/               repository tooling only: browser smoke test, README clip recorder, T3 theme snapshot
+.codex-plugin/ .cursor-plugin/ .agents/plugins/ gemini-extension.json   per-agent plugin manifests
 ```
 
 ## Develop
 
 - Test: `node --test test/*.test.mjs`
 - Rebuild committed examples after changing the compiler or kit: `npm run build:examples` (CI fails if `examples/*.html` are stale).
-- Release: bump `VERSION` in `compile.mjs` and the four manifests (`package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`) together; the test suite fails on any mismatch.
+- Release: bump `VERSION` in `compile.mjs` and the seven manifests (`package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `gemini-extension.json`) together; the test suite fails on any mismatch. `.agents/plugins/marketplace.json` (Codex marketplace) carries no version.
+- Browser checks (optional, need Python Playwright + Chromium, and Pillow for clips): `python3 scripts/smoke-browser.py` clicks every control of the compiled examples at 728 dark/light and 390 dark; `python3 scripts/record-demos.py` re-records the README clips in `docs/images/`. Both live outside `skills/` and are not published.
 - Keep `compile.mjs` dependency-free and add a failing sample test for every new static check.
 
 ## 中文摘要
 
-把 `skills/inline-brief/` 整个目录复制到 Agent 的 skill 目录，无需安装依赖（Node >= 20）。先读 `SKILL.md`，用真实数据写 `.src.html`，用 `compile.mjs` 编译并修完所有 ERROR，再用 `html_preview` 做三态检查，最后 `html_render` 内联显示。
+用 `npx skills add jieyuexing/inline-brief-skill` 一键安装，或把 `skills/inline-brief/` 整个目录复制到 Agent 的 skill 目录，无需安装依赖（Node >= 20）。先读 `SKILL.md`，用真实数据写 `.src.html`，用 `compile.mjs` 编译并修完所有 ERROR，再用 `html_preview` 做三态检查，最后 `html_render` 内联显示。

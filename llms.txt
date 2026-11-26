@@ -12,6 +12,7 @@
 - [components.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/skills/inline-brief/references/components.md): every `<ib-*>` tag and attribute
 - [visual-grammar.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/skills/inline-brief/references/visual-grammar.md): which pattern to pick for which question
 - [t3-contract.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/skills/inline-brief/references/t3-contract.md): html_render viewport, theme token and static-gate rules
+- [lessons.md](https://github.com/jieyuexing/inline-brief-skill/blob/main/skills/inline-brief/references/lessons.md): traps that already broke pages, the compiler or packaging
 
 ## Examples
 

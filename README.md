@@ -6,7 +6,9 @@
 
 [中文说明](README.zh-CN.md) · [Skill](skills/inline-brief/SKILL.md) · [Component reference](skills/inline-brief/references/components.md) · [`html_render` contract](skills/inline-brief/references/t3-contract.md)
 
-![inline-brief-skill: 55-line semantic DSL compiled into an interactive, theme-native T3 Code visual](docs/images/hero-pipeline.png)
+![A cursor works an <ib-picker> board inside a T3 Code thread: filters by group, shortlists one card and skips another, opens the zoom dialog and pages to the next option, types a short note, then copies the summary and gets the selected plain-text fallback](docs/images/picker-demo.webp)
+
+<sub>Recorded from the compiled [`visual-direction-picker.html`](examples/visual-direction-picker.html) in headless Chromium with T3's own theme variables and a sandboxed clipboard; every click is a real mouse event (`scripts/record-demos.py`).</sub>
 
 ## Give this to your agent
 
@@ -29,9 +31,13 @@ Raw HTML and SVG written by an LLM for an inline preview tends to fail in the sa
 - **Native theming.** Output uses only T3 CSS variables (`--card`, `--border`, `--chart-1`, `--info`, ...), so it follows Dark, Light and custom themes.
 - **Zero dependencies.** One Node >= 20 ES module, no install step, no network access, zero external URLs or embeds in the output (`data:` and `#id` allowed).
 
+![inline-brief-skill: 55-line semantic DSL compiled into an interactive, theme-native T3 Code visual](docs/images/hero-pipeline.png)
+
 ## Examples
 
-![Interactive visual confirmation with <ib-picker>: filterable image and wireframe cards with shortlist/skip buttons and 1-click copy summary](docs/images/visual-picker.png)
+![A cursor steps through <ib-stepper> with Next and Play while the flow nodes, back edges and swimlane steps light up in sync, hovers the Postgres node to cross-highlight its lane step, then the T3 theme switches from Dark to Light and the page follows](docs/images/stepper-flow-demo.webp)
+
+<sub>[`cache-read-path.html`](examples/cache-read-path.html): the stepper drives the flow and the swimlanes, hovering a node highlights the same key in every figure, and a theme switch only swaps the host's CSS variables.</sub>
 
 ![Same compiled brief across Dark 728px, Light 728px, and Mobile 390px using T3 CSS variables](docs/images/themes-qa.png)
 
@@ -44,6 +50,35 @@ Raw HTML and SVG written by an LLM for an inline preview tends to fail in the sa
 All figures and artwork in the examples are original illustrative sample data.
 
 ## Install
+
+```bash
+npx skills add jieyuexing/inline-brief-skill
+```
+
+That uses the [`npx skills`](https://github.com/vercel-labs/skills) CLI, which installs `skills/inline-brief/` for Claude Code, Codex, Cursor, Gemini CLI, OpenCode and other agents. Start a new agent session afterwards. Nothing else is needed: the compiler has no dependencies (Node >= 20).
+
+<details>
+<summary>Claude Code plugin</summary>
+
+```
+/plugin marketplace add jieyuexing/inline-brief-skill
+/plugin install inline-brief-skill@inline-brief-skill
+```
+
+</details>
+
+<details>
+<summary>Codex plugin</summary>
+
+```bash
+codex plugin marketplace add jieyuexing/inline-brief-skill
+codex plugin add inline-brief-skill@inline-brief-skill
+```
+
+</details>
+
+<details>
+<summary>Copy the skill by hand</summary>
 
 Copy `skills/inline-brief/` into the skill directory your agent reads, or clone and symlink it. Under T3 Code each provider reads its own location:
 
@@ -59,7 +94,9 @@ mkdir -p .claude/skills && cp -R inline-brief-skill/skills/inline-brief .claude/
 mkdir -p .agents/skills && cp -R inline-brief-skill/skills/inline-brief .agents/skills/   # Codex / Antigravity
 ```
 
-Claude Code can also install it as a plugin: `/plugin marketplace add jieyuexing/inline-brief-skill`, then `/plugin install inline-brief-skill@inline-brief-skill`. The repository ships an [Agent Plugins 1.0](https://agent-plugins.org) `plugin.json` as well. Skill paths vary by agent version; check your agent's documentation if the skill is not discovered.
+</details>
+
+The repository also ships manifests for Cursor (`.cursor-plugin/plugin.json`), Gemini CLI (`gemini-extension.json`) and [Agent Plugins 1.0](https://agent-plugins.org) (`plugin.json`). Skill paths vary by agent version; check your agent's documentation if the skill is not discovered.
 
 ## DSL at a glance
 
@@ -122,6 +159,10 @@ node skills/inline-brief/scripts/compile.mjs examples/cache-read-path.src.html -
 
 # tests (Node >= 20, no install)
 node --test test/*.test.mjs
+
+# optional browser checks (Python Playwright + Chromium; Pillow for the clips)
+python3 scripts/smoke-browser.py    # clicks every control at 728 dark/light and 390 dark
+python3 scripts/record-demos.py     # re-records docs/images/*-demo.webp
 ```
 
 In T3 Code the agent then runs `html_preview` three times (dark 728px, light 728px, dark 390px), checks that `consoleMessages` is empty, and calls `html_render` with the compiled file. See [`SKILL.md`](skills/inline-brief/SKILL.md).

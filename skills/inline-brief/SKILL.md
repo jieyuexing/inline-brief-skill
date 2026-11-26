@@ -41,4 +41,6 @@ Turn complex systems, diagnostics, comparisons and multi-option user confirmatio
 - `scripts/compile.mjs` - compiler and static linter (CLI `inline-brief`).
 - `kit/base.css`, `kit/runtime.js` - inlined into every compiled page.
 - `references/` - component DSL, visual grammar, `html_render` contract.
+- `references/lessons.md` - traps that already broke pages, the compiler or packaging; read before adding a component or gate.
+- `agents/openai.yaml` - display metadata for Codex.
 - `examples/` (repository root) - compiled demo pages (architecture flow, repo audit, visual direction picker) with sources.
